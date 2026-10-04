@@ -26,7 +26,8 @@ def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     path = OUT_DIR / f"{args.label}_{stamp}.csv"
-    header = ["timestamp"] + [f"ch{i}" for i in range(TOTAL_CHANNEL_COUNT)] + ["label"]
+    channel_count = client.channel_count or TOTAL_CHANNEL_COUNT
+    header = ["timestamp"] + [f"ch{i}" for i in range(channel_count)] + ["label"]
 
     print(f"Recording '{args.label}' for {args.seconds}s → {path}")
     print("Perform the artifact clearly, then rest.")
@@ -36,7 +37,7 @@ def main() -> None:
         with path.open("w", newline="") as handle:
             writer = csv.writer(handle)
             writer.writerow(header)
-            rows += _record_loop(client, writer, args.label, end)
+            rows += _record_loop(client, writer, args.label, end, channel_count)
     except KeyboardInterrupt:
         print("\nStopped early.")
     finally:
@@ -44,15 +45,15 @@ def main() -> None:
     print(f"Wrote {rows} samples to {path}")
 
 
-def _record_loop(client: LslClient, writer, label: str, end: float) -> int:
+def _record_loop(client: LslClient, writer, label: str, end: float, channel_count: int) -> int:
     rows = 0
     while time.monotonic() < end:
         chunk = client.pull_chunk(timeout=0.2)
         now = time.time()
         for sample in chunk:
-            padded = list(sample[:TOTAL_CHANNEL_COUNT])
-            if len(padded) < TOTAL_CHANNEL_COUNT:
-                padded.extend([0.0] * (TOTAL_CHANNEL_COUNT - len(padded)))
+            padded = list(sample[:channel_count])
+            if len(padded) < channel_count:
+                padded.extend([0.0] * (channel_count - len(padded)))
             writer.writerow([now, *padded, label])
             rows += 1
     return rows

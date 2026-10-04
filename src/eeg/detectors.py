@@ -18,6 +18,21 @@ class DetectorConfig:
     release_ratio: float = 0.6
 
 
+JAW_TAKEOFF_THRESHOLD = 40.0
+
+
+def jaw_takeoff_config(threshold: float = JAW_TAKEOFF_THRESHOLD) -> DetectorConfig:
+    """Calibrated from rest/jaw baselines: rest never exceeds ~30, a clench stays above 40 for ~0.7-1.1 s."""
+    return DetectorConfig(
+        jaw_rms_threshold=threshold,
+        jaw_short_min=0.5,
+        jaw_short_max=2.0,
+        jaw_long_min=2.0,
+        jaw_emergency_min=10.0,
+        blink_peak_threshold=float("inf"),
+    )
+
+
 class ArtifactDetector:
     """Heuristic state machines. Tune thresholds from baseline recordings."""
 
@@ -28,6 +43,10 @@ class ArtifactDetector:
         self._last_blink_at = 0.0
         self._blink_open = False
         self._refractory_until = 0.0
+
+    @property
+    def jaw_active(self) -> bool:
+        return self._jaw_active
 
     def update(self, jaw_rms: float, blink_amp: float, timestamp: float) -> list[str]:
         if timestamp < self._refractory_until:
