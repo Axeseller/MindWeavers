@@ -104,7 +104,7 @@ def main() -> None:
 
     cleaning = {name: ARTIFACT_CLEANING[name] for name in arbiter.inputs}
     clock = client.now if replay else time.monotonic
-    print("\nJaw: takeoff/land. Eyes closed: camera. Blink: photo. Smile: forward. Fist: back. Neck: right. Frown: left.")
+    print("\nJaw: takeoff/land. Eyes closed: camera. Blink: photo. Smile: forward. Fist: back. Neck (either side): right. Frown: left.")
     print("Ctrl+C lands and exits.\n")
 
     # 3. Read the stream, let the arbiter pick one input at a time, act on it

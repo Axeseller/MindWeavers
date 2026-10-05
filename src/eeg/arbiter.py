@@ -38,7 +38,7 @@ Gate = Callable[[Seen, Seen], "str | None"]
 MOTION_LIMIT = 8.0  # gyroscope magnitude; a fist or a blink barely moves the head
 ANGRY_MOTION_LIMIT = 12.0  # frowning tilts the head a little
 JAW_EMG_LIMIT = 15.0  # a clench starting leaks into the blink band
-NECK_MAX_PITCH = 0.4  # neck turn: pitch at most 0.4 x yaw (measured <= 0.27; raising an arm >= 0.73)
+NECK_MAX_PITCH = 0.6  # neck turn: pitch at most 0.6 x yaw (measured <= 0.27; raising an arm >= 0.73)
 FROWN_MAX_RATIO = 0.85  # frown: frontal/occipital EMG at its peak (measured 0.47-0.88; others >= 0.89)
 SMILE_MIN_RATIO = 0.9  # smile: frontal/occipital EMG at its peak (measured 0.90-1.30; frown ~0.6, arm ~0.75)
 EYES_OPEN_ALPHA = 5.0  # alpha above this means the eyes were closed (frown/smile 1-3, eyes closed 8-14)
@@ -86,6 +86,10 @@ def _gate_blink(peak: Seen, at_peak: Seen) -> str | None:
         return f"head moved {peak['motion']:.1f}"
     if peak["jaw_emg"] > JAW_EMG_LIMIT:
         return f"jaw EMG {peak['jaw_emg']:.1f}: a clench starting"
+    # With cerrar_ojos enabled (its feature is in `peak`), priority already tells a closure from a blink and keeps
+    # more blinks. Without it, closing the eyes would read as blinks, so alpha decides (costs ~1 blink in 4).
+    if "cerrar_ojos" not in peak and peak["alpha"] > EYES_OPEN_ALPHA:
+        return f"alpha {peak['alpha']:.1f}: the eyes were closed"
     return None
 
 

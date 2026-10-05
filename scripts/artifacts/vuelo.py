@@ -1,7 +1,7 @@
 """Simple flight with three inputs, driven through Tello/Mover.py (the team's keyboard controller):
 
     jaw (1st time)  -> key Q  -> takeoff
-    cuello          -> key W  -> forward 1 s   (turn the head to the RIGHT, then back)
+    cuello          -> key W  -> forward 1 s   (turn the head to either side, then back)
     blink           -> key S  -> back 1 s
     jaw (2nd time)  -> key E  -> land
 
@@ -184,7 +184,7 @@ def main() -> None:
 
     clock = client.now if replay else time.monotonic
     print("\n  JAW clench   -> Q takeoff (1st) / E land (2nd)")
-    print("  Head RIGHT  -> W forward")
+    print("  Turn head   -> W forward (either side)")
     print("  BLINK       -> S back")
     print("  Ctrl+C      -> land and exit\n")
 

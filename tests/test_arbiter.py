@@ -31,7 +31,7 @@ def play(arbiter: InputArbiter, frames: list[dict[str, float]]) -> list[str]:
     """Feed one frame per 40 ms tick (anything missing is at rest) and return the emitted inputs."""
     out = []
     for i, frame in enumerate(frames):
-        values = {**QUIET_VALUES, **{k: v for k, v in frame.items() if k in QUIET_VALUES}}
+        values = {k: frame.get(k, 0.0) for k in arbiter.inputs}  # like fly.py: only the enabled inputs
         gauges = {**QUIET_GAUGES, **{k: v for k, v in frame.items() if k in QUIET_GAUGES}}
         emitted = arbiter.update(values, i * STEP, gauges)
         if emitted:
@@ -91,6 +91,12 @@ class ArbiterTest(unittest.TestCase):
     def test_closing_the_eyes_is_not_a_blink(self) -> None:
         close = hold(0.3, blink=50) + hold(1.6, cerrar_ojos=5) + hold(1.0)
         self.assertEqual(play(self.arbiter, close), ["cerrar_ojos"])
+
+    def test_without_cerrar_ojos_closing_the_eyes_is_not_a_blink(self) -> None:
+        arbiter = InputArbiter(("jaw", "cuello", "blink"), params=PARAMS)
+        close = hold(0.3, blink=50, alpha=4) + hold(1.6, alpha=9) + hold(1.0)
+        self.assertEqual(play(arbiter, close), [])
+        self.assertEqual(play(InputArbiter(("jaw", "cuello", "blink"), params=PARAMS), hold(0.3, blink=50) + hold(1.5)), ["blink"])
 
     def test_blink_with_a_short_alpha_leak_is_still_a_blink(self) -> None:
         blink = hold(0.3, blink=50) + hold(0.3, cerrar_ojos=5) + hold(1.5)

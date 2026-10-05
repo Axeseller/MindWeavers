@@ -1,6 +1,6 @@
-"""Head turn to the right.
+"""Head turn (either side).
 
-Recording: cuelloderechacada4sec. Signal: gyroscope yaw, first movement negative.
+Recording: cuelloderechacada4sec. Signal: gyroscope yaw, either direction.
 Cleaning: eeg.preprocess.ARTIFACT_CLEANING["cuello"]. Decision: eeg.detectors.ARTIFACT_PARAMS["cuello"].
 Alone, this script only prints each detection. The drone action (RIGHT pulse) runs from fly.py,
 where the arbiter keeps the inputs from firing on each other.

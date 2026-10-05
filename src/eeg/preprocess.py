@@ -113,8 +113,8 @@ ARTIFACT_CLEANING: dict[str, ArtifactCleaning] = {
     "blink": ArtifactCleaning(channels=(FZ,), band=(0.5, 8.0), filter_order=2, car=True, recent_s=0.5, stat="peak"),
     # Closed eyes raise occipital alpha.
     "cerrar_ojos": ArtifactCleaning(channels=(PO7, OZ, PO8), band=EYES_CLOSED_BAND, car=True, recent_s=0.5),
-    # Head turn to the right: yaw rate goes negative.
-    "cuello": ArtifactCleaning(source="gyro", channels=(GYRO_Z,), recent_s=0.2, stat="mean"),
+    # Head turn to either side: yaw rate, unsigned (the sign depends on how the headset sits).
+    "cuello": ArtifactCleaning(source="gyro", channels=(GYRO_Z,), recent_s=0.2, stat="absmean"),
     # A fist barely reaches the scalp; what shows is a small body movement (peak ~3). Big movements are not a fist.
     "puno": ArtifactCleaning(source="gyro", channels=(GYRO_X, GYRO_Y, GYRO_Z), recent_s=0.3),
     # Frowning: broad facial EMG, same band as the jaw but 4x weaker (peak ~21 vs ~100).

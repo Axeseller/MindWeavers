@@ -38,7 +38,7 @@ STEPS: dict[str, tuple[str, float, float]] = {
     "cerrar_ojos": ("Close your eyes and keep them closed until told to open", 6.0, 3.0),
     "blink": ("Blink once, firmly", 3.0, 0.3),
     "puno": ("Close a fist hard, stay still otherwise", 4.0, 1.0),
-    "cuello": ("Turn your head to the RIGHT, then back", 4.0, 1.0),
+    "cuello": ("Turn your head to one side, then back", 4.0, 1.0),
     "angry": ("Make an angry face (frown) for ~1 s", 4.0, 1.0),
     "happy": ("Smile big, showing teeth, for ~1 s", 4.0, 1.0),
 }

@@ -208,7 +208,7 @@ ARTIFACT_PARAMS: dict[str, ArtifactParams] = {
     "jaw": ArtifactParams(threshold=JAW_TAKEOFF_THRESHOLD, min_s=0.5, max_s=2.0, refractory_s=0.8),
     "blink": ArtifactParams(threshold=30.0, max_s=0.8, refractory_s=0.8),
     "cerrar_ojos": ArtifactParams(threshold=3.3, min_s=1.5, hold=True, refractory_s=1.0),
-    "cuello": ArtifactParams(threshold=14.0, min_s=0.1, direction=-1, refractory_s=1.5),
+    "cuello": ArtifactParams(threshold=10.0, min_s=0.1, refractory_s=1.5),
     "puno": ArtifactParams(threshold=2.5, min_s=0.15, ceiling=8.0, refractory_s=1.5),
     "angry": ArtifactParams(threshold=6.0, min_s=0.2, ceiling=25.0, refractory_s=1.5),
     "happy": ArtifactParams(threshold=2.0, min_s=0.2, ceiling=10.0, refractory_s=1.5),

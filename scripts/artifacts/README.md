@@ -7,7 +7,7 @@ Three inputs, connects to the real Tello by default. Each gesture becomes the ke
 | Gesture | Action |
 |---|---|
 | jaw clench (1st) | Q: takeoff |
-| turn the head to the RIGHT | W: forward 1 s |
+| turn the head (either side) | W: forward 1 s |
 | blink | S: back 1 s |
 | jaw clench (2nd) | E: land |
 
@@ -16,6 +16,9 @@ python scripts/artifacts/calibrate.py --inputs jaw,cuello,blink   # once per per
 python scripts/artifacts/vuelo.py --dry-run                       # test without the drone
 python scripts/artifacts/vuelo.py                                 # real flight (Tello Wi-Fi first); Ctrl+C lands
 ```
+Keep the eyes open while flying: without the cerrar_ojos input, a closure is filtered by its alpha, but about 1 in
+4 still reads as a blink (back). The neck turn counts to either side; now and then the return swing adds an extra
+forward.
 
 ## Full set: `fly.py`
 
@@ -29,7 +32,7 @@ gesture becomes one input. The single-input scripts only print detections, for c
 | `blink` | blink | photo (camera on) | `blink.py` |
 | `happy` | smile big | forward 1 s | `happy.py` |
 | `puno` | close a fist | back 1 s | `puno.py` |
-| `cuello` | turn the head right | right 1 s | `cuello.py` |
+| `cuello` | turn the head (either side) | right 1 s | `cuello.py` |
 | `angry` | frown | left 1 s | `angry.py` |
 
 ```bash
@@ -74,7 +77,7 @@ a clench leaks into the blink band.
 
    | Input | Must look like | Measured on the recordings |
    |---|---|---|
-   | cuello | almost pure yaw: pitch <= 0.4 x yaw | neck <= 0.27, arm raise >= 0.73 |
+   | cuello | mostly yaw: pitch <= 0.6 x yaw | neck <= 0.27, arm raise >= 0.73 |
    | angry | frontal/occipital EMG <= 0.85 at its peak; eyes open (alpha <= 5); head moved <= 12 | frown 0.47-0.88, alpha 1.7-3.4; eyes closing: alpha 8-14 |
    | happy | frontal/occipital EMG >= 0.9; eyes open; no blink (eye deflection <= 22); no clench; head still | smile 0.90-1.30, deflection 13-20; blink 25-72 |
    | puno | head moved <= 8 | |
