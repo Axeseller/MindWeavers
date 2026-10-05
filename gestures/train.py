@@ -43,7 +43,7 @@ warnings.filterwarnings("ignore")
 REST_PATTERN = "rest_*"
 GATES = (0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 0.98, 0.99)
 COLLISION = 0.10        # warn when two inputs are confused this often
-MODEL_DIR = "models"
+MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
 
 
 def lda():

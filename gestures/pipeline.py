@@ -62,10 +62,9 @@ class Params:
     eog_floor: float = float("inf")
     refractory_s: float = 1.5      # no new gesture this soon after a decision
     history_s: float = 20.0        # rolling window for the envelope's median/MAD
-    gate_type: float = 0.95        # minimum confidence per stage (overwritten by train.py)
-    gate_puno: float = 0.95
-    gate_brazo: float = 0.95
-    gate_flat: float = 0.95        # single-stage sets (e.g. cabeza)
+    # Confidence gates. train.py overwrites them from validation; these are fallbacks.
+    gate_type: float = 0.95        # grouped design: group stage (e.g. puño vs brazo)
+    gate_flat: float = 0.95        # flat design: the single gesture stage
     gate_gesture: float = 0.5      # stage A: trained gesture vs other movement
 
 

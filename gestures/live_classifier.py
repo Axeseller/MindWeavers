@@ -23,6 +23,7 @@ How a decision is made
 from __future__ import annotations
 
 import argparse
+import os
 import time
 from collections import deque
 
@@ -30,6 +31,9 @@ import joblib
 import numpy as np
 
 import pipeline as P
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+MIN_CHANNELS = 14              # 8 EEG + 3 accelerometer + 3 gyroscope
 
 FS = P.FS
 STREAM_NAME = "UnicornRecorderRawDataLSLStream"
@@ -203,7 +207,15 @@ def run_lsl(clf: GestureClassifier, stream: str) -> None:
     found = resolve_byprop("name", stream, timeout=8.0)
     if not found:
         raise SystemExit(f"No LSL stream '{stream}'")
-    inlet = StreamInlet(found[0], max_buflen=4)
+    info = found[0]
+    if info.channel_count() < MIN_CHANNELS:
+        raise SystemExit(
+            f"'{stream}' has {info.channel_count()} channels; need at least {MIN_CHANNELS} "
+            "(8 EEG + accelerometer + gyroscope). Enable raw data output in Unicorn Recorder."
+        )
+    if abs(info.nominal_srate() - FS) > 1:
+        raise SystemExit(f"'{stream}' runs at {info.nominal_srate():.0f} Hz; the models were trained at {FS} Hz.")
+    inlet = StreamInlet(info, max_buflen=4)
     print(f"Connected to '{stream}'. Stay still ~5 s while the baseline fills, then gesture.")
     started = time.monotonic()
     try:
@@ -220,13 +232,17 @@ def run_lsl(clf: GestureClassifier, stream: str) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Unicorn LSL -> gesture -> flight function")
-    ap.add_argument("--model", default="models/brazos.joblib", help="A model made by train.py")
+    ap.add_argument("--model", default=os.path.join(HERE, "models", "brazos.joblib"),
+                    help="A model made by train.py (path, or a preset name like 'cabeza')")
     ap.add_argument("--stream", default=STREAM_NAME)
     ap.add_argument("--replay", help="Feed a recorded CSV instead of LSL")
     ap.add_argument("--realtime", action="store_true", help="With --replay, play at real speed")
     args = ap.parse_args()
 
-    bundle = joblib.load(args.model)
+    path = args.model
+    if not os.path.exists(path) and os.path.exists(os.path.join(HERE, "models", f"{path}.joblib")):
+        path = os.path.join(HERE, "models", f"{path}.joblib")
+    bundle = joblib.load(path)
     clf = GestureClassifier(bundle)
     print("Active inputs: " + ", ".join(f"{name} -> {cmd}" for name, cmd in clf.flight.items()))
     if args.replay:

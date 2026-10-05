@@ -1,6 +1,6 @@
 """Replay the recordings of a model's inputs (plus rest) through live_classifier.py.
 
-    python evaluate_replay.py <csv folder> models/brazos.joblib
+    python evaluate_replay.py <csv folder> models/brazos.joblib   (or just: brazos)
 """
 import contextlib
 import glob
@@ -16,9 +16,15 @@ from live_classifier import GestureClassifier, run_replay
 
 warnings.filterwarnings("ignore")
 folder, model_path = sys.argv[1], sys.argv[2]
+here = os.path.dirname(os.path.abspath(__file__))
+if not os.path.exists(model_path):
+    model_path = os.path.join(here, "models", f"{model_path}.joblib")
 bundle = joblib.load(model_path)
 recordings = {spec["name"]: spec["recording"] for spec in bundle["inputs"]}
-recordings["reposo"] = "rest_20261004_141750"
+# Longest rest recording in the folder (the team's first rest file is empty).
+rest = sorted(glob.glob(os.path.join(folder, "rest_*.csv")), key=os.path.getsize)
+if rest:
+    recordings["reposo"] = os.path.basename(rest[-1])[:-4]
 total = Counter()
 for label, pattern in recordings.items():
     clf = GestureClassifier(bundle)
