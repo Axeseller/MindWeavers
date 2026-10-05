@@ -43,7 +43,8 @@ The keyboard lease is `HOLD_LEASE_S = 0.6`. It covers the ~0.5 s OS key-repeat d
   - Clench switches takeoff/land using `jaw_takeoff_config()`, the same calibrated detector as `jaw_takeoff.py`. The keyboard drives the skills.
   - Flags: `--live`, `--no-video`, `--no-eeg`, `--threshold`, `--stream`.
   - Without a headset stream, dry-run continues keyboard-only; `--live` exits unless `--no-eeg` is given.
-- `src/app.py` — same loop plus the double-blink photo; it now uses the calibrated jaw timing too (`--threshold`).
+- `scripts/artifacts/fly.py` — supported multi-artifact runner. It uses `InputArbiter` and per-session calibration; see `scripts/artifacts/README.md`.
+- `src/app.py` — deprecated compatibility wrapper that forwards supported arguments to `scripts/artifacts/fly.py`.
 - `scripts/jaw_takeoff.py` — unchanged one-shot reference test.
 
 ## Safety

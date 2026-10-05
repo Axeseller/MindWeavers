@@ -54,4 +54,4 @@ The laptop cannot stay on campus Wi-Fi and Tello Wi-Fi at the same time. Sequenc
 1. Install Python packages on internet Wi-Fi.
 2. Start Unicorn Recorder and verify LSL (Unicorn uses Bluetooth, not Wi-Fi).
 3. Switch the laptop Wi-Fi to Tello.
-4. Run `src/app.py`.
+4. Run `python scripts/artifacts/fly.py` (dry-run first; use `--live` only for a supervised flight).

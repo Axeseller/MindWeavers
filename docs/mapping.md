@@ -1,4 +1,10 @@
-# Artifact to command mapping
+# Legacy event-to-command mapping
+
+> Retired as the runtime integration path. The supported artifact mapping,
+> calibration, and conflict-resolution policy live in
+> [`scripts/artifacts/fly.py`](../scripts/artifacts/fly.py) and
+> [`scripts/artifacts/README.md`](../scripts/artifacts/README.md).
+> `src/app.py` is now a compatibility wrapper only.
 
 Do not change this table during a flight session. Tune detector thresholds, not the meaning of each event.
 

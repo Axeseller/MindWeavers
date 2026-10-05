@@ -44,9 +44,8 @@ flowchart LR
   ManualMode["scripts/manual_mode.py"] --> Trigger["eeg/trigger.py"]
   ManualMode --> Mapper["mapping/commands.py"]
   ManualMode --> Skills["tello/skills.py (SkillRunner)"]
-  App["src/app.py"] --> Trigger
-  App --> Mapper
-  App --> Skills
+  ArtifactFly["scripts/artifacts/fly.py"] --> Arbiter["eeg/arbiter.py"]
+  ArtifactFly --> Skills
   Skills --> Controller["tello/controller.py"]
   Controller --> SDK["djitellopy"]
 ```

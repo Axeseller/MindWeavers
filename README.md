@@ -2,19 +2,23 @@
 
 Control a DJI Tello with EEG artifacts from a Unicorn Hybrid Black headset.
 
-One Windows laptop talks to both devices: Unicorn Recorder streams **raw** LSL, and this app maps jaw clenches and double blinks to Tello commands.
+One Windows laptop talks to both devices: Unicorn Recorder streams **raw** LSL, and
+`scripts/artifacts/fly.py` maps calibrated artifacts to Tello commands.
 
 ## Artifact map
 
-| Artifact | Command |
+| Input | Command |
 |---|---|
-| Short jaw clench (~0.5–1 s) | Switch: takeoff if grounded, land if flying |
-| Long jaw clench (~1.5 s or more) | Land |
-| Very long jaw clench (~10 s) | Land (motors are never cut) |
-| Double blink (within 500 ms) | Take a photo (`app.py`) |
-| Single blink | Ignored |
+| Jaw clench | Take off when grounded; land when flying |
+| Eyes closed | Toggle camera |
+| Blink | Take a photo while the camera is on |
+| Smile | Forward pulse |
+| Fist | Back pulse |
+| Right neck turn | Right pulse |
+| Frown | Left pulse |
 
-Movement skills (forward, back, left, right, up, down, yaw) have no EEG gesture yet; the keyboard drives them. Keyboard is always available as a safety override. See [docs/mapping.md](docs/mapping.md) and [docs/skills_plan/phase_5_skill_runner.md](docs/skills_plan/phase_5_skill_runner.md).
+See [the artifact runner guide](scripts/artifacts/README.md) for calibration,
+recorded results, and the known limitations of each input.
 
 ## Setup (Windows flight laptop)
 
@@ -62,14 +66,17 @@ python scripts/manual_mode.py --no-eeg
 python scripts/manual_mode.py --live
 ```
 
-Full pipeline (adds the double-blink photo):
+Artifact flight pipeline (dry-run by default):
 
 ```bash
-python src/app.py --dry-run
-python src/app.py
+python scripts/artifacts/doctor.py
+python scripts/artifacts/calibrate.py
+python scripts/artifacts/fly.py
+python scripts/artifacts/fly.py --live
 ```
 
-`--dry-run` prints commands and never opens a Tello socket. Both accept `--threshold` (jaw RMS, default 40).
+`fly.py` is the supported integration entry point. `src/app.py` is deprecated
+and forwards compatible commands to it. Use replay and dry-run before `--live`.
 
 Tests (no hardware):
 
@@ -77,9 +84,10 @@ Tests (no hardware):
 python -m unittest discover -s tests
 ```
 
-## Keyboard override
+## Manual flight
 
-Focus the Tello camera window.
+Use Manual Mode to validate drone movement and retain a keyboard-only control
+path. Focus the Tello camera window.
 
 - `Space` takeoff/land switch
 - `Q` takeoff, `E` land
@@ -88,7 +96,9 @@ Focus the Tello camera window.
 - `R` `T` yaw left / right
 - `ESC` exit (waits for a running takeoff/land, then lands)
 
-While takeoff or landing runs, every other input is ignored.
+While takeoff or landing runs, every other input is ignored. `fly.py` currently
+uses Ctrl+C to land and exit; do not rely on it as a replacement for a manual
+flight safety procedure.
 
 ## Team
 
@@ -97,5 +107,5 @@ Axel, Ian, Chavez, Luisao, Hector.
 - Unicorn / LSL: Recorder, stream name, `test_lsl.py`, baselines
 - Tello SDK: `src/tello/controller.py`, safety, photo
 - EEG mapping: `src/eeg/`, [docs/mapping.md](docs/mapping.md)
-- Integration: `src/app.py`
+- Integration: `scripts/artifacts/fly.py`
 - Demo / pitch: [docs/pitch.md](docs/pitch.md)
