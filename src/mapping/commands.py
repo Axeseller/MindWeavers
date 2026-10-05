@@ -15,6 +15,13 @@ class Action(str, Enum):
     LAND = "LAND"
     EMERGENCY = "EMERGENCY"
     FORWARD = "FORWARD"
+    BACK = "BACK"
+    LEFT = "LEFT"
+    RIGHT = "RIGHT"
+    UP = "UP"
+    DOWN = "DOWN"
+    YAW_CW = "YAW_CW"
+    YAW_CCW = "YAW_CCW"
     PHOTO = "PHOTO"
 
 
@@ -37,4 +44,4 @@ class CommandMapper:
         if now < self._next_flight_at:
             return None
         self._next_flight_at = now + self.cooldown_s
-        return Action.FORWARD if is_flying else Action.TAKEOFF
+        return Action.LAND if is_flying else Action.TAKEOFF

@@ -14,10 +14,22 @@ from eeg.detectors import ArtifactDetector
 from eeg.preprocess import extract_features, preprocess_window
 from lsl.client import DEFAULT_STREAM_NAME, LslClient
 from mapping.commands import Action, CommandMapper
+from tello import skills
 from tello.controller import TelloController, print_keyboard_help
 
 PHOTO_DIR = ROOT / "data" / "recordings"
 LOOP_SLEEP_S = 0.01
+
+ACTION_SKILLS = {
+    Action.FORWARD: "forward",
+    Action.BACK: "back",
+    Action.LEFT: "left",
+    Action.RIGHT: "right",
+    Action.UP: "up",
+    Action.DOWN: "down",
+    Action.YAW_CW: "yaw_clockwise",
+    Action.YAW_CCW: "yaw_counterclockwise",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,8 +48,8 @@ def apply_action(controller: TelloController, action: str) -> None:
         controller.land()
     elif action == Action.EMERGENCY:
         controller.emergency_land()
-    elif action == Action.FORWARD:
-        controller.forward_burst()
+    elif action in ACTION_SKILLS:
+        skills.start_skill(controller, ACTION_SKILLS[action])
     elif action == Action.PHOTO:
         controller.take_photo(PHOTO_DIR)
 
