@@ -133,6 +133,56 @@ class ArbiterTest(unittest.TestCase):
                 arbiter.update({"cuello": -30.0 if i < 10 else 0.0}, i * STEP)
 
 
+class FaceCalibrationTest(unittest.TestCase):
+    """A person whose frown is frontal (ratio ~1.4) and whose smile is not (~0.7): the opposite of the recordings."""
+
+    def setUp(self) -> None:
+        from eeg import arbiter as arbiter_module
+
+        self.limits = arbiter_module.FACE_LIMITS
+        self.saved = dict(self.limits)
+
+    def tearDown(self) -> None:
+        self.limits.clear()
+        self.limits.update(self.saved)
+
+    def face_segment(self, name: str, ratio: float, blink: float) -> calibration.Segment:
+        ticks = 400
+        times = np.arange(ticks) * STEP
+        values = {n: np.zeros(ticks) for n in ("angry", "happy")}
+        gauges = {k: np.full(ticks, v) for k, v in QUIET_GAUGES.items()}
+        level = 12.0 if name == "angry" else 4.0
+        for start in range(20, ticks - 40, 60):  # a face every 2.4 s, held 0.6 s
+            values[name][start : start + 15] = level
+            gauges["frontal_ratio"][start : start + 15] = ratio
+            gauges["blink_fz"][start : start + 15] = blink
+        return times, values, gauges
+
+    def test_default_gates_reject_this_person(self) -> None:
+        frown = hold(0.6, angry=10, frontal_ratio=1.4) + hold(2.0)
+        self.assertEqual(play(InputArbiter(params=PARAMS), frown), [])
+
+    def test_calibration_flips_the_boundary_and_accepts_them(self) -> None:
+        segments = {"angry": self.face_segment("angry", 1.4, 12), "happy": self.face_segment("happy", 0.7, 30)}
+        limits = calibration.fit_face_limits(segments, {"angry": ("angry",), "happy": ("happy",)}, log=lambda *_: None)
+        self.assertFalse(limits["frown_is_low"])
+        self.assertAlmostEqual(limits["face_ratio"], 1.05, places=2)
+        self.assertGreaterEqual(limits["smile_max_blink"], 30 * 1.3 - 0.1)
+        calibration.apply_gates(limits)
+        frown = hold(0.6, angry=10, frontal_ratio=1.4) + hold(2.0)
+        smile = hold(0.6, happy=4, frontal_ratio=0.7, blink_fz=30) + hold(2.0)
+        self.assertEqual(play(InputArbiter(params=PARAMS), frown), ["angry"])
+        self.assertEqual(play(InputArbiter(params=PARAMS), smile), ["happy"])
+
+    def test_gates_are_saved_and_loaded(self) -> None:
+        path = Path(tempfile.mkdtemp()) / "thresholds.json"
+        calibration.save({"angry": 5.0}, path, gates={"face_ratio": 1.2, "frown_is_low": False})
+        calibration.save({"happy": 1.5}, path)  # a later threshold-only save keeps the gates
+        self.assertTrue(calibration.apply_saved_gates(path))
+        self.assertEqual(self.limits["face_ratio"], 1.2)
+        self.assertFalse(self.limits["frown_is_low"])
+
+
 class CeilingTest(unittest.TestCase):
     def test_activation_above_ceiling_is_discarded(self) -> None:
         params = ArtifactParams(threshold=2.0, min_s=0.1, ceiling=8.0)

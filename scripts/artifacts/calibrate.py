@@ -141,9 +141,14 @@ def recording_segments(folder: Path) -> tuple[dict, dict, dict]:
 def analyze(rows: dict, own: dict, reps: dict, inputs: tuple[str, ...], out: Path, note: str) -> None:
     print("\nPreparing the session...")
     segments = {label: segment(data, inputs) for label, data in rows.items()}
+    gates = None
+    if "angry" in inputs or "happy" in inputs:
+        print("Fitting the face patterns to you...")
+        gates = calibration.fit_face_limits(segments, own)
+        calibration.apply_gates(gates)
     print("Choosing thresholds (replays the whole session through the arbiter, ~1-2 min)...")
     thresholds = calibration.choose_thresholds(segments, inputs, own, reps)
-    path = calibration.save(thresholds, out, note)
+    path = calibration.save(thresholds, out, note, gates)
 
     print(f"\n  {'input':12s} {'tested':>8s} {'yours':>8s}")
     for name in inputs:

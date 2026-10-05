@@ -25,7 +25,7 @@ import _paths  # noqa: F401
 from _live import CsvReplayClient
 from camera_actions import take_photo, toggle_camera
 from eeg.arbiter import PRIORITY, InputArbiter
-from eeg.calibration import DEFAULT_PATH as CALIBRATION, calibrated_params, load as load_calibration
+from eeg.calibration import DEFAULT_PATH as CALIBRATION, apply_saved_gates, calibrated_params, load as load_calibration
 from eeg.preprocess import ARTIFACT_CLEANING, GAUGE_CLEANING, SAMPLE_RATE, artifact_feature
 from lsl.client import DEFAULT_STREAM_NAME, LslClient
 from tello.controller import TelloController
@@ -59,6 +59,7 @@ def build_arbiter(args: argparse.Namespace) -> InputArbiter:
         arbiter = InputArbiter(names)
     else:
         print(f"[fly] thresholds: calibrated, from {CALIBRATION}")
+        apply_saved_gates()
         arbiter = InputArbiter(names, params=calibrated_params())
     for item in args.threshold:
         name, _, value = item.partition("=")

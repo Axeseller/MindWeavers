@@ -39,10 +39,14 @@ MOTION_LIMIT = 8.0  # gyroscope magnitude; a fist or a blink barely moves the he
 ANGRY_MOTION_LIMIT = 12.0  # frowning tilts the head a little
 JAW_EMG_LIMIT = 15.0  # a clench starting leaks into the blink band
 NECK_MAX_PITCH = 0.6  # neck turn: pitch at most 0.6 x yaw (measured <= 0.27; raising an arm >= 0.73)
-FROWN_MAX_RATIO = 0.85  # frown: frontal/occipital EMG at its peak (measured 0.47-0.88; others >= 0.89)
-SMILE_MIN_RATIO = 0.9  # smile: frontal/occipital EMG at its peak (measured 0.90-1.30; frown ~0.6, arm ~0.75)
 EYES_OPEN_ALPHA = 5.0  # alpha above this means the eyes were closed (frown/smile 1-3, eyes closed 8-14)
-SMILE_MAX_BLINK = 22.0  # frontal eye deflection during a smile is 13-20; a blink is 25-72
+#: Face gates. They depend on the person and on where the electrodes sit, so calibrate.py refits them from each
+#: session (eeg.calibration.apply_saved_gates). Defaults are from the 2026-10-04 recordings:
+#: - face_ratio: frontal/occipital EMG at the peak that separates a frown from a smile (frown 0.47-0.88,
+#:   smile 0.90-1.30; neck turns, jaw and arm raises sit around 0.75-1.5).
+#: - frown_is_low: True when the frown is the lower of the two (occipital-dominant), False when it is frontal.
+#: - smile_max_blink: frontal eye deflection allowed during a smile (smile 13-20, a blink 25-72).
+FACE_LIMITS: dict[str, float | bool] = {"face_ratio": 0.875, "frown_is_low": True, "smile_max_blink": 22.0}
 
 
 def _gate_cuello(peak: Seen, at_peak: Seen) -> str | None:
@@ -51,13 +55,24 @@ def _gate_cuello(peak: Seen, at_peak: Seen) -> str | None:
     return None
 
 
+def _frown_side(ratio: float) -> bool:
+    """True when this frontal/occipital EMG ratio falls on the frown side of the boundary."""
+    boundary = FACE_LIMITS["face_ratio"]
+    return ratio <= boundary if FACE_LIMITS["frown_is_low"] else ratio >= boundary
+
+
+def _limit_text() -> str:
+    side = "<=" if FACE_LIMITS["frown_is_low"] else ">="
+    return f"frown {side} {FACE_LIMITS['face_ratio']:.2f}"
+
+
 def _gate_angry(peak: Seen, at_peak: Seen) -> str | None:
     if peak["motion"] > ANGRY_MOTION_LIMIT:
         return f"head moved {peak['motion']:.1f}"
     if peak["alpha"] > EYES_OPEN_ALPHA:
         return f"alpha {peak['alpha']:.1f}: the eyes were closed"
-    if at_peak["frontal_ratio"] > FROWN_MAX_RATIO:
-        return f"frontal/occipital EMG {at_peak['frontal_ratio']:.2f}: not a frown pattern"
+    if not _frown_side(at_peak["frontal_ratio"]):
+        return f"frontal/occipital EMG {at_peak['frontal_ratio']:.2f}: not a frown pattern ({_limit_text()})"
     return None
 
 
@@ -68,10 +83,10 @@ def _gate_happy(peak: Seen, at_peak: Seen) -> str | None:
         return f"alpha {peak['alpha']:.1f}: the eyes were closed"
     if peak["jaw_emg"] > JAW_EMG_LIMIT:
         return f"jaw EMG {peak['jaw_emg']:.1f}: a clench"
-    if peak["blink_fz"] > SMILE_MAX_BLINK:
-        return f"eye deflection {peak['blink_fz']:.0f}: a blink"
-    if at_peak["frontal_ratio"] < SMILE_MIN_RATIO:
-        return f"frontal/occipital EMG {at_peak['frontal_ratio']:.2f}: a frown, not a smile"
+    if peak["blink_fz"] > FACE_LIMITS["smile_max_blink"]:
+        return f"eye deflection {peak['blink_fz']:.0f} > {FACE_LIMITS['smile_max_blink']:.0f}: a blink"
+    if _frown_side(at_peak["frontal_ratio"]):
+        return f"frontal/occipital EMG {at_peak['frontal_ratio']:.2f}: a frown, not a smile ({_limit_text()})"
     return None
 
 

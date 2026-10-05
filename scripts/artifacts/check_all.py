@@ -19,7 +19,7 @@ import numpy as np
 
 from _live import REPLAY_CHUNK, detections, feature_series, load_csv
 from eeg.arbiter import PRIORITY
-from eeg.calibration import Segment, calibrated_params, replay
+from eeg.calibration import Segment, apply_saved_gates, calibrated_params, replay
 from eeg.preprocess import GAUGE_CLEANING, SAMPLE_RATE, artifact_feature
 
 # Recording label -> (file pattern, repetitions in it)
@@ -45,7 +45,7 @@ OWN: dict[str, tuple[str, ...]] = {
     "jaw": ("jaw",),
     "blink": ("blink",),
     "cerrar_ojos": ("cerrar_ojos",),
-    "cuello": ("cuello_der",),
+    "cuello": ("cuello_der", "cuello_izq"),  # either side counts
     "puno": ("puno_izq", "puno_der"),
     "angry": ("angry",),
     "happy": ("happy",),
@@ -86,6 +86,7 @@ def main() -> None:
     args = parser.parse_args()
     names = tuple(args.only.split(",")) if args.only else PRIORITY
     params = calibrated_params()
+    apply_saved_gates()
 
     alone: dict[str, dict[str, int]] = {}
     together: dict[str, dict[str, int]] = {}

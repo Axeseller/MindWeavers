@@ -14,8 +14,9 @@ from pathlib import Path
 
 import numpy as np
 
+from eeg import arbiter as arbiter_module
 from eeg.arbiter import InputArbiter
-from eeg.detectors import ARTIFACT_PARAMS, ArtifactParams
+from eeg.detectors import ARTIFACT_PARAMS, ArtifactParams, ThresholdDetector
 
 DEFAULT_PATH = Path(__file__).resolve().parents[2] / "data" / "calibration" / "thresholds.json"
 SEARCH = (0.4, 3.0, 21)  # thresholds tried per input: tested default x 0.4 ... x 3, log spaced
@@ -83,11 +84,74 @@ def choose_thresholds(
     return {name: params[name].threshold for name in inputs}
 
 
-def save(thresholds: dict[str, float], path: Path = DEFAULT_PATH, note: str = "") -> Path:
-    """Write the thresholds, keeping any saved ones for inputs not in `thresholds`."""
+MIN_FACES = 3  # repetitions needed to fit a face gate
+
+
+def face_peaks(segment: Segment, name: str) -> list[tuple[float, float]]:
+    """(frontal/occipital ratio at the peak, max eye deflection) for each activation of a face input, found with
+    its threshold only (no gates). Lowers the threshold when the person's EMG is weaker than tested."""
+    times, values, gauges = segment
+    for scale in (1.0, 0.7, 0.5, 0.35):
+        detector = ThresholdDetector(replace(ARTIFACT_PARAMS[name], threshold=ARTIFACT_PARAMS[name].threshold * scale))
+        found, start = [], 0
+        for i, (t, v) in enumerate(zip(times, values[name])):
+            was = detector.active
+            fired = detector.update(float(v), float(t))
+            if detector.active and not was:
+                start = i
+            if fired:
+                peak = start + int(np.argmax(values[name][start : i + 1]))
+                found.append((float(gauges["frontal_ratio"][peak]), float(np.max(gauges["blink_fz"][start : i + 1]))))
+        if len(found) >= MIN_FACES:
+            return found
+    return found
+
+
+def fit_face_limits(segments: dict[str, Segment], own: dict[str, tuple[str, ...]], log=print) -> dict:
+    """Face gate limits for this person: the frown/smile boundary sits between their own frowns and smiles."""
+    limits = dict(arbiter_module.FACE_LIMITS)
+    peaks = {}
+    for name in ("angry", "happy"):
+        labels = [label for label in own.get(name, ()) if label in segments]
+        peaks[name] = [p for label in labels for p in face_peaks(segments[label], name)]
+    frown = [ratio for ratio, _ in peaks["angry"]]
+    smile = [ratio for ratio, _ in peaks["happy"]]
+    if len(frown) >= MIN_FACES and len(smile) >= MIN_FACES:
+        frown_med, smile_med = float(np.median(frown)), float(np.median(smile))
+        limits["frown_is_low"] = frown_med < smile_med
+        limits["face_ratio"] = round((frown_med + smile_med) / 2, 3)
+        log(f"  frown pattern {frown_med:.2f}, smile pattern {smile_med:.2f} -> boundary {limits['face_ratio']:.2f}")
+        if abs(frown_med - smile_med) < 0.1:
+            log("  [!] your frown and smile look alike to the headset: they may confuse each other")
+    elif peaks["angry"] or peaks["happy"]:
+        log("  [!] not enough frowns or smiles to fit the face pattern; keeping the tested boundary")
+    if len(peaks["happy"]) >= MIN_FACES:
+        blinks = [blink for _, blink in peaks["happy"]]
+        limits["smile_max_blink"] = round(max(22.0, 1.3 * float(np.percentile(blinks, 90))), 1)
+        log(f"  eye deflection while smiling up to {max(blinks):.0f} -> allowed {limits['smile_max_blink']:.0f}")
+    return limits
+
+
+def apply_gates(limits: dict) -> None:
+    arbiter_module.FACE_LIMITS.update({k: v for k, v in limits.items() if k in arbiter_module.FACE_LIMITS})
+
+
+def apply_saved_gates(path: Path = DEFAULT_PATH) -> bool:
+    """Use the face limits of the saved calibration, if it has them. Returns whether it did."""
+    if not path.exists():
+        return False
+    gates = json.loads(path.read_text()).get("gates", {})
+    apply_gates(gates)
+    return bool(gates)
+
+
+def save(thresholds: dict[str, float], path: Path = DEFAULT_PATH, note: str = "", gates: dict | None = None) -> Path:
+    """Write the thresholds (and face limits), keeping any saved ones for inputs not in `thresholds`."""
+    previous = json.loads(path.read_text()) if path.exists() else {}
     merged = {**load(path), **thresholds}
+    data = {"note": note, "thresholds": merged, "gates": {**previous.get("gates", {}), **(gates or {})}}
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"note": note, "thresholds": merged}, indent=2))
+    path.write_text(json.dumps(data, indent=2))
     return path
 
 

@@ -25,8 +25,8 @@ from pathlib import Path
 
 import _paths  # noqa: F401
 from _live import CsvReplayClient
-from eeg.arbiter import GATES, InputArbiter
-from eeg.calibration import DEFAULT_PATH as CALIBRATION, calibrated_params, load as load_calibration
+from eeg.arbiter import FACE_LIMITS, GATES, InputArbiter
+from eeg.calibration import DEFAULT_PATH as CALIBRATION, apply_saved_gates, calibrated_params, load as load_calibration
 from eeg.preprocess import ARTIFACT_CLEANING, GAUGE_CLEANING, SAMPLE_RATE, artifact_feature
 from lsl.client import DEFAULT_STREAM_NAME, LslClient
 
@@ -90,6 +90,8 @@ def parse_args() -> argparse.Namespace:
 
 def build_arbiter(args: argparse.Namespace, inputs: tuple[str, ...] = INPUTS) -> InputArbiter:
     gates = {k: v for k, v in GATES.items() if k not in ("angry", "happy")} if args.loose_faces else GATES
+    if not args.no_calibration:
+        apply_saved_gates()
     if load_calibration() and not args.no_calibration:
         arbiter = InputArbiter(inputs, params=calibrated_params(), gates=gates)
     else:
@@ -225,6 +227,13 @@ def main(inputs: tuple[str, ...] = INPUTS, keys: dict[str, str] = KEYS, controls
     source = f"calibrated ({CALIBRATION})" if load_calibration() and not args.no_calibration else "tested defaults"
     print(f"Thresholds: {source}")
     print("  " + "  ".join(f"{name}={arbiter.detectors[name].params.threshold:g}" for name in inputs))
+    if {"angry", "happy"} & set(inputs):
+        if args.loose_faces:
+            print("  face checks: OFF (--loose-faces)")
+        else:
+            side = "<=" if FACE_LIMITS["frown_is_low"] else ">="
+            print(f"  face checks: frown when frontal/occipital {side} {FACE_LIMITS['face_ratio']:.2f}, "
+                  f"smile eye deflection <= {FACE_LIMITS['smile_max_blink']:.0f}")
 
     # 1. Connect to the drone and check the battery (as Tello/Inicio.py does)
     tello = connect_tello(dry_run)
