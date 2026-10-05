@@ -46,9 +46,9 @@ OWN: dict[str, tuple[str, ...]] = {
     "blink": ("blink",),
     "cerrar_ojos": ("cerrar_ojos",),
     "cuello": ("cuello_der",),
-    "brazos": ("brazo_izq", "brazo_der"),
     "puno": ("puno_izq", "puno_der"),
     "angry": ("angry",),
+    "happy": ("happy",),
 }
 SETTLE_S = 5.0  # the headset settles during the first seconds of every recording
 REFERENCE_SETTLE_S = 10.0  # rest and eyes-closed include cap adjustment up to ~10 s

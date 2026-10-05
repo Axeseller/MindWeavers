@@ -115,12 +115,12 @@ ARTIFACT_CLEANING: dict[str, ArtifactCleaning] = {
     "cerrar_ojos": ArtifactCleaning(channels=(PO7, OZ, PO8), band=EYES_CLOSED_BAND, car=True, recent_s=0.5),
     # Head turn to the right: yaw rate goes negative.
     "cuello": ArtifactCleaning(source="gyro", channels=(GYRO_Z,), recent_s=0.2, stat="mean"),
-    # Raising either arm tips the head: pitch rate goes strongly negative (-50), a head turn only to -17.
-    "brazos": ArtifactCleaning(source="gyro", channels=(GYRO_X,), recent_s=0.2, stat="mean"),
     # A fist barely reaches the scalp; what shows is a small body movement (peak ~3). Big movements are not a fist.
     "puno": ArtifactCleaning(source="gyro", channels=(GYRO_X, GYRO_Y, GYRO_Z), recent_s=0.3),
     # Frowning: broad facial EMG, same band as the jaw but 4x weaker (peak ~21 vs ~100).
     "angry": ArtifactCleaning(band=JAW_BAND, recent_s=0.5),
+    # Smiling: weaker facial EMG that only shows in high gamma once the part shared by all electrodes is removed.
+    "happy": ArtifactCleaning(band=(30.0, 100.0), car=True, recent_s=0.5),
 }
 
 # Gauges: extra measurements the arbiter (eeg.arbiter) watches during an activation to tell look-alikes apart.
@@ -134,6 +134,10 @@ GAUGE_CLEANING: dict[str, ArtifactCleaning] = {
     "jaw_emg": ArtifactCleaning(band=JAW_BAND),
     # Frontal / occipital EMG. A frown is ~0.6; neck turns, smiles and jaw clenches are 0.9-1.5.
     "frontal_ratio": ArtifactCleaning(channels=(FZ,), band=JAW_BAND, recent_s=0.5, ratio_to=(PO7, OZ, PO8)),
+    # Occipital alpha, as in cerrar_ojos: 1-3 with the eyes open, 8-14 once they are closed.
+    "alpha": ArtifactCleaning(channels=(PO7, OZ, PO8), band=EYES_CLOSED_BAND, car=True, recent_s=0.5),
+    # Frontal eye deflection, as in blink: 13-20 while smiling, 25-72 for a blink.
+    "blink_fz": ArtifactCleaning(channels=(FZ,), band=(0.5, 8.0), filter_order=2, car=True, recent_s=0.5, stat="peak"),
 }
 
 

@@ -3,7 +3,7 @@
     jaw          -> takeoff when grounded, land when flying
     cerrar_ojos  -> camera on / off
     blink        -> photo (while the camera is on)
-    brazos       -> forward pulse
+    happy        -> forward pulse
     puno         -> back pulse
     cuello       -> right pulse
     angry        -> left pulse
@@ -31,7 +31,7 @@ from lsl.client import DEFAULT_STREAM_NAME, LslClient
 from tello.controller import TelloController
 from tello.skills import SkillRunner
 
-PULSES = {"brazos": "forward", "puno": "back", "cuello": "right", "angry": "left"}
+PULSES = {"happy": "forward", "puno": "back", "cuello": "right", "angry": "left"}
 PULSE_S = 1.0
 STATUS_INTERVAL_S = 0.25
 LOOP_SLEEP_S = 0.005
@@ -104,7 +104,7 @@ def main() -> None:
 
     cleaning = {name: ARTIFACT_CLEANING[name] for name in arbiter.inputs}
     clock = client.now if replay else time.monotonic
-    print("\nJaw: takeoff/land. Eyes closed: camera. Blink: photo. Arm: forward. Fist: back. Neck: right. Frown: left.")
+    print("\nJaw: takeoff/land. Eyes closed: camera. Blink: photo. Smile: forward. Fist: back. Neck: right. Frown: left.")
     print("Ctrl+C lands and exits.\n")
 
     # 3. Read the stream, let the arbiter pick one input at a time, act on it

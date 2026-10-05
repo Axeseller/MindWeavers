@@ -17,14 +17,14 @@ STEP = 0.04
 PARAMS = {
     "jaw": ArtifactParams(threshold=40.0, min_s=0.2, max_s=2.0, refractory_s=0.2),
     "cerrar_ojos": ArtifactParams(threshold=3.0, min_s=1.0, hold=True, refractory_s=0.2),
-    "brazos": ArtifactParams(threshold=10.0, min_s=0.1, direction=-1, refractory_s=0.2),
     "cuello": ArtifactParams(threshold=14.0, min_s=0.1, direction=-1, refractory_s=0.2),
     "blink": ArtifactParams(threshold=30.0, max_s=0.8, refractory_s=0.2),
     "angry": ArtifactParams(threshold=6.0, min_s=0.2, ceiling=25.0, refractory_s=0.2),
+    "happy": ArtifactParams(threshold=2.0, min_s=0.2, ceiling=10.0, refractory_s=0.2),
     "puno": ArtifactParams(threshold=2.0, min_s=0.1, ceiling=8.0, refractory_s=0.2),
 }
 QUIET_VALUES = {name: 0.0 for name in PRIORITY}
-QUIET_GAUGES = {"motion": 0.5, "pitch": 0.0, "yaw": 0.0, "jaw_emg": 2.0, "frontal_ratio": 1.0}
+QUIET_GAUGES = {"motion": 0.5, "pitch": 0.0, "yaw": 0.0, "jaw_emg": 2.0, "frontal_ratio": 1.0, "alpha": 1.5, "blink_fz": 10.0}
 
 
 def play(arbiter: InputArbiter, frames: list[dict[str, float]]) -> list[str]:
@@ -50,7 +50,9 @@ class ArbiterTest(unittest.TestCase):
     def test_priority_order(self) -> None:
         self.assertEqual(PRIORITY[0], "jaw")
         self.assertLess(PRIORITY.index("blink"), PRIORITY.index("angry"))
-        self.assertLess(PRIORITY.index("angry"), PRIORITY.index("puno"))
+        self.assertLess(PRIORITY.index("blink"), PRIORITY.index("happy"))
+        self.assertEqual(PRIORITY[-1], "puno")
+        self.assertNotIn("brazos", PRIORITY)
 
     def test_rest_emits_nothing(self) -> None:
         self.assertEqual(play(self.arbiter, hold(5.0)), [])
@@ -60,22 +62,31 @@ class ArbiterTest(unittest.TestCase):
         turn = hold(0.4, cuello=-30, yaw=30, pitch=5, motion=20, puno=5, angry=8) + hold(2.0)
         self.assertEqual(play(self.arbiter, turn), ["cuello"])
 
-    def test_arm_raise_is_brazos_not_cuello(self) -> None:
-        arm = hold(0.4, brazos=-25, cuello=-20, pitch=25, yaw=15, motion=30) + hold(2.0)
-        self.assertEqual(play(self.arbiter, arm), ["brazos"])
+    def test_arm_raise_is_not_cuello(self) -> None:
+        arm = hold(0.4, cuello=-20, pitch=25, yaw=15, motion=30) + hold(2.0)
+        self.assertEqual(play(self.arbiter, arm), [])
 
     def test_rejected_higher_input_lets_the_next_one_through(self) -> None:
-        # brazos crosses its threshold but the movement is almost pure yaw: it was the neck.
-        turn = hold(0.4, brazos=-12, cuello=-30, pitch=3, yaw=30, motion=20) + hold(2.0)
-        self.assertEqual(play(self.arbiter, turn), ["cuello"])
+        # angry crosses its threshold but with a smile's EMG pattern: happy gets through.
+        smile = hold(0.6, angry=7, happy=4, frontal_ratio=1.1) + hold(2.0)
+        self.assertEqual(play(self.arbiter, smile), ["happy"])
 
-    def test_frown_is_angry_even_if_the_head_tips(self) -> None:
-        frown = hold(0.6, angry=10, frontal_ratio=0.6, brazos=-12, pitch=12, motion=10) + hold(2.0)
+    def test_frown_is_angry_not_happy(self) -> None:
+        frown = hold(0.6, angry=10, happy=4, frontal_ratio=0.6, pitch=8, motion=7) + hold(2.0)
         self.assertEqual(play(self.arbiter, frown), ["angry"])
 
-    def test_facial_emg_without_the_frown_pattern_is_not_angry(self) -> None:
-        smile = hold(0.6, angry=10, frontal_ratio=1.05) + hold(2.0)
-        self.assertEqual(play(self.arbiter, smile), [])
+    def test_smile_is_happy(self) -> None:
+        smile = hold(0.6, happy=3, frontal_ratio=1.1) + hold(2.0)
+        self.assertEqual(play(self.arbiter, smile), ["happy"])
+
+    def test_closing_the_eyes_is_not_angry_or_happy(self) -> None:
+        # Short closure (cerrar_ojos never fires) that squeezes the face: alpha gives it away.
+        squeeze = hold(0.6, angry=10, happy=4, frontal_ratio=0.7, alpha=9) + hold(2.0)
+        self.assertEqual(play(self.arbiter, squeeze), [])
+
+    def test_blink_leaking_into_the_smile_band_is_not_happy(self) -> None:
+        blink = hold(0.3, happy=3, blink_fz=40) + hold(2.0)
+        self.assertEqual(play(InputArbiter(("happy",), params=PARAMS), blink), [])
 
     def test_closing_the_eyes_is_not_a_blink(self) -> None:
         close = hold(0.3, blink=50) + hold(1.6, cerrar_ojos=5) + hold(1.0)

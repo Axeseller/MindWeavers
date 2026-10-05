@@ -8,7 +8,7 @@ gesture becomes one input. The single-input scripts only print detections, for c
 | `jaw` | clench the jaw 0.5-2 s | takeoff / land | `jaw.py` (flies on its own) |
 | `cerrar_ojos` | eyes closed 1.5 s | camera on / off | `cerrar_ojos.py` |
 | `blink` | blink | photo (camera on) | `blink.py` |
-| `brazos` | raise an arm, firmly | forward 1 s | `brazos.py` |
+| `happy` | smile big | forward 1 s | `happy.py` |
 | `puno` | close a fist | back 1 s | `puno.py` |
 | `cuello` | turn the head right | right 1 s | `cuello.py` |
 | `angry` | frown | left 1 s | `angry.py` |
@@ -43,20 +43,21 @@ remains. `--analyze <session folder>` recalibrates a saved session without the h
 
 ## How the arbiter keeps inputs apart
 One gesture fires several detectors: a head turn is also a small body movement (`puno`) and neck EMG (`angry`);
-raising an arm turns the head (`cuello`); closing the eyes starts like a blink; a clench leaks into the blink band.
+closing the eyes starts like a blink and squeezes the face (`angry`); a blink leaks into the smile band (`happy`);
+a clench leaks into the blink band.
 `InputArbiter`:
 1. A firing is a **candidate for 0.5 s** instead of acting at once.
-2. **Priority** `jaw > cerrar_ojos > brazos > cuello > blink > angry > puno`: the highest candidate that passes its
-   gate wins, the rest are dropped. While a higher detector is still active (eyes still closed, arm still
-   moving) the decision waits. Blink sits above angry and puno: a wrong photo is harmless, a wrong pulse moves
-   the drone.
+2. **Priority** `jaw > cerrar_ojos > cuello > blink > angry > happy > puno`: the highest candidate that passes its
+   gate wins, the rest are dropped. While a higher detector is still active (eyes still closed, head still
+   turning) the decision waits. Blink sits above angry, happy and puno: a wrong photo is harmless, a wrong pulse
+   moves the drone.
 3. **Gates**, checked on everything seen from the onset to the decision:
 
    | Input | Must look like | Measured on the recordings |
    |---|---|---|
-   | cuello | almost pure yaw: pitch <= 0.4 x yaw | neck <= 0.27, arm >= 0.73 |
-   | brazos | the head tips: pitch >= 0.5 x yaw, and moves >= 15 | |
-   | angry | frontal/occipital EMG <= 0.85 at its peak; head moved <= 12 | frown 0.51-0.80; neck, smile, jaw >= 0.89 |
+   | cuello | almost pure yaw: pitch <= 0.4 x yaw | neck <= 0.27, arm raise >= 0.73 |
+   | angry | frontal/occipital EMG <= 0.85 at its peak; eyes open (alpha <= 5); head moved <= 12 | frown 0.47-0.88, alpha 1.7-3.4; eyes closing: alpha 8-14 |
+   | happy | frontal/occipital EMG >= 0.9; eyes open; no blink (eye deflection <= 22); no clench; head still | smile 0.90-1.30, deflection 13-20; blink 25-72 |
    | puno | head moved <= 8 | |
    | blink | head moved <= 8; jaw EMG <= 15 (not a clench starting) | |
 
@@ -65,22 +66,22 @@ raising an arm turns the head (`cuello`); closing the eyes starts like a blink; 
 ## Results on the 2026-10-04 recordings (`check_all.py`, table 2)
 Nothing fires at rest. Rows are what was done, columns what `fly.py` emitted.
 
-| Done | jaw | cerrar_ojos | brazos | cuello | blink | angry | puno |
+| Done | jaw | cerrar_ojos | cuello | blink | angry | happy | puno |
 |---|---|---|---|---|---|---|---|
 | jaw x18 | **15** | | | | | | |
-| eyes closed x9 | | **8** | | | 2 | | |
-| blink x18 | | | | | **15** | | |
-| right arm x18 | | | **14** | | | | 1 |
-| left arm x18 | | | **13** | | | | |
-| head right x14 | | | | **14** | 1 | | |
-| frown x14 | | | | | 1 | **12** | 1 |
-| left fist x18 | | | | 1 | 1 | | **12** |
-| right fist x18 | | | | | 1 | | **15** |
-| smile x14 (not an input) | | | | | | | 1 |
-| head left x14 (not an input) | 1 | | | 1 | | | |
+| eyes closed x9 | | **8** | | 2 | | | |
+| blink x18 | | | | **15** | | | |
+| head right x14 | | | **14** | 1 | | | |
+| frown x14 | | | | 1 | **12** | | 1 |
+| smile x14 | | | | | | **13** | |
+| left fist x18 | | | 1 | 1 | | | **5** |
+| right fist x18 | | | | 1 | | 1 | **9** |
+| arm raises x36 (not inputs) | | | | 1 | 2 | | 1 |
 
 What is left:
 - **Eyes closed -> 2 photos**: probably real blinks between the closures (people blink when they reopen).
-- **Fists** are the weakest input: what is read is the small body movement, so any other small head movement can
-  fire it (5 of 14 imagined head turns). Stay still when not using it.
+- **Fists** are the weakest input. The headset cannot see the hand, only the small body movement, so any small
+  head movement can fire it. The default threshold is raised so it stays quiet; `calibrate.py` lowers it as far
+  as your rest allows (on these recordings: 12 and 13 of 18). Stay still when not using it, or leave it out
+  with `--inputs`.
 - One session of one person; on another person or day, run `calibrate.py` first.

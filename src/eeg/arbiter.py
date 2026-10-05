@@ -1,16 +1,16 @@
 """One decision from several artifact detectors running on the same stream.
 
 Every detector only knows its own feature, so one gesture can fire several of them: a head turn is also a small
-body movement (puno) and some neck EMG (angry); closing the eyes starts like a blink; raising an arm also turns
-the head a bit (cuello). The arbiter turns their firings into at most one input at a time:
+body movement (puno) and some neck EMG (angry, happy); closing the eyes starts like a blink and squeezes the
+face (angry); a blink leaks into the smile band (happy). The arbiter turns their firings into at most one input at a time:
 
 1. A firing becomes a *candidate* for `confirm_s` instead of acting at once.
 2. Priority: the highest-priority candidate that passes its gate wins; the others are dropped. While a
    higher-priority detector is still active (eyes still closed, arm still moving), the decision waits, since it
    may still fire. A candidate rejected by its gate lets the next one in line through.
 3. Gates: from onset until the decision the arbiter tracks gauges (eeg.preprocess.GAUGE_CLEANING) and every
-   input's feature, then checks the input's GATES. A neck turn must be mostly yaw, an arm raise must tip the head,
-   a frown must have its own EMG pattern, faint inputs must come without a big head movement.
+   input's feature, then checks the input's GATES. A neck turn must be mostly yaw, a frown and a smile must have
+   their own EMG pattern with the eyes open, faint inputs must come without a big head movement.
 4. Once emitted, everything is ignored for `refractory_s`, including activations that started before it ended
    (the return swing of a movement).
 """
@@ -23,8 +23,8 @@ from dataclasses import replace
 from eeg.detectors import ARTIFACT_PARAMS, ArtifactParams, ThresholdDetector
 
 #: Highest priority first. A higher one wins over, or cancels, a lower one that fires at the same time.
-#: blink sits above angry and puno because a wrong photo is harmless and a wrong pulse moves the drone.
-PRIORITY: tuple[str, ...] = ("jaw", "cerrar_ojos", "brazos", "cuello", "blink", "angry", "puno")
+#: blink sits above angry, happy and puno because a wrong photo is harmless and a wrong pulse moves the drone.
+PRIORITY: tuple[str, ...] = ("jaw", "cerrar_ojos", "cuello", "blink", "angry", "happy", "puno")
 CONFIRM_S = 0.5
 MAX_WAIT_S = 2.0
 REFRACTORY_S = 1.0
@@ -38,10 +38,11 @@ Gate = Callable[[Seen, Seen], "str | None"]
 MOTION_LIMIT = 8.0  # gyroscope magnitude; a fist or a blink barely moves the head
 ANGRY_MOTION_LIMIT = 12.0  # frowning tilts the head a little
 JAW_EMG_LIMIT = 15.0  # a clench starting leaks into the blink band
-NECK_MAX_PITCH = 0.4  # neck turn: pitch at most 0.4 x yaw (measured <= 0.27)
-ARM_MIN_PITCH = 0.5  # arm raise: pitch at least 0.5 x yaw (measured >= 0.73)
-ARM_MIN_MOTION = 15.0  # arm raise moves the head a lot; a frown tips it too, but less
-FROWN_MAX_RATIO = 0.85  # frown: frontal/occipital EMG at its peak (measured 0.51-0.80; others >= 0.89)
+NECK_MAX_PITCH = 0.4  # neck turn: pitch at most 0.4 x yaw (measured <= 0.27; raising an arm >= 0.73)
+FROWN_MAX_RATIO = 0.85  # frown: frontal/occipital EMG at its peak (measured 0.47-0.88; others >= 0.89)
+SMILE_MIN_RATIO = 0.9  # smile: frontal/occipital EMG at its peak (measured 0.90-1.30; frown ~0.6, arm ~0.75)
+EYES_OPEN_ALPHA = 5.0  # alpha above this means the eyes were closed (frown/smile 1-3, eyes closed 8-14)
+SMILE_MAX_BLINK = 22.0  # frontal eye deflection during a smile is 13-20; a blink is 25-72
 
 
 def _gate_cuello(peak: Seen, at_peak: Seen) -> str | None:
@@ -50,19 +51,27 @@ def _gate_cuello(peak: Seen, at_peak: Seen) -> str | None:
     return None
 
 
-def _gate_brazos(peak: Seen, at_peak: Seen) -> str | None:
-    if peak["pitch"] < ARM_MIN_PITCH * peak["yaw"]:
-        return f"pitch {peak['pitch']:.0f} vs yaw {peak['yaw']:.0f}: the neck, not an arm"
-    if peak["motion"] < ARM_MIN_MOTION:
-        return f"head moved only {peak['motion']:.0f}: not an arm"
-    return None
-
-
 def _gate_angry(peak: Seen, at_peak: Seen) -> str | None:
     if peak["motion"] > ANGRY_MOTION_LIMIT:
         return f"head moved {peak['motion']:.1f}"
+    if peak["alpha"] > EYES_OPEN_ALPHA:
+        return f"alpha {peak['alpha']:.1f}: the eyes were closed"
     if at_peak["frontal_ratio"] > FROWN_MAX_RATIO:
         return f"frontal/occipital EMG {at_peak['frontal_ratio']:.2f}: not a frown pattern"
+    return None
+
+
+def _gate_happy(peak: Seen, at_peak: Seen) -> str | None:
+    if peak["motion"] > MOTION_LIMIT:
+        return f"head moved {peak['motion']:.1f}"
+    if peak["alpha"] > EYES_OPEN_ALPHA:
+        return f"alpha {peak['alpha']:.1f}: the eyes were closed"
+    if peak["jaw_emg"] > JAW_EMG_LIMIT:
+        return f"jaw EMG {peak['jaw_emg']:.1f}: a clench"
+    if peak["blink_fz"] > SMILE_MAX_BLINK:
+        return f"eye deflection {peak['blink_fz']:.0f}: a blink"
+    if at_peak["frontal_ratio"] < SMILE_MIN_RATIO:
+        return f"frontal/occipital EMG {at_peak['frontal_ratio']:.2f}: a frown, not a smile"
     return None
 
 
@@ -82,8 +91,8 @@ def _gate_blink(peak: Seen, at_peak: Seen) -> str | None:
 
 GATES: dict[str, Gate] = {
     "cuello": _gate_cuello,
-    "brazos": _gate_brazos,
     "angry": _gate_angry,
+    "happy": _gate_happy,
     "puno": _gate_puno,
     "blink": _gate_blink,
 }
