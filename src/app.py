@@ -63,6 +63,11 @@ def translate_legacy_args(argv: list[str]) -> list[str]:
 
 def main(argv: list[str] | None = None) -> None:
     """Run the simple flight."""
+    for stream in (sys.stdout, sys.stderr):  # see scripts/artifacts/_paths.py: Git Bash would buffer the output
+        try:
+            stream.reconfigure(line_buffering=True)
+        except (AttributeError, ValueError):
+            pass
     args = sys.argv[1:] if argv is None else argv
     flight = FLIGHT_SIDES if "--lados" in args else FLIGHT
     forwarded = translate_legacy_args(args)

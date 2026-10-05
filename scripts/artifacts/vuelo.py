@@ -43,6 +43,7 @@ CONTROLS = (
 PULSE_S = 1.0  # how long a forward/back command is held
 RC_REFRESH_S = 0.1  # resend the current RC command this often, like Mover.py's loop (keeps the Tello awake)
 MIN_BATTERY = 20
+NO_DATA_WARN_S = 3.0  # say so when the headset sends nothing for this long
 STATUS_INTERVAL_S = 0.5
 LOOP_SLEEP_S = 0.005
 HOVER = (0, 0, 0, 0)
@@ -200,14 +201,23 @@ def main(inputs: tuple[str, ...] = INPUTS, keys: dict[str, str] = KEYS, controls
 
     # 3. One gesture at a time from the arbiter, sent as Mover.py would
     next_status = 0.0
+    last_data = time.monotonic()
+    next_warning = last_data + NO_DATA_WARN_S
+    print("Waiting for headset data...")
     try:
         while True:
             chunk = client.pull_chunk(timeout=0.05)
             if chunk.size == 0:
                 if replay and client.finished:
                     break
+                if not replay and time.monotonic() >= next_warning:
+                    print(f"[!] No data from the headset for {time.monotonic() - last_data:.0f} s: is Unicorn "
+                          "Recorder streaming (LSL on, headset connected)?")
+                    next_warning = time.monotonic() + NO_DATA_WARN_S
                 flight.tick(clock())
                 continue
+            last_data = time.monotonic()
+            next_warning = last_data + NO_DATA_WARN_S
             window = client.window()
             if len(window) < SAMPLE_RATE:
                 continue
