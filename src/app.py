@@ -8,6 +8,8 @@
     python src/app.py --dry-run     # no drone: prints what it would send
     python src/app.py               # REAL Tello (connect to its Wi-Fi first); Ctrl+C lands
 
+    python src/app.py --lados       # the same plus smile -> D right and frown -> A left (vuelo5.py)
+
 The flight itself lives in scripts/artifacts/vuelo.py; this file keeps `src/app.py` as the one command to run and
 translates the flags of the old app.py. Calibrate once per person and session:
 `python scripts/artifacts/calibrate.py --inputs jaw,cuello,blink`. For every input (camera, smile, frown, fist)
@@ -23,6 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT_DIR = ROOT / "scripts" / "artifacts"
 FLIGHT = ARTIFACT_DIR / "vuelo.py"
+FLIGHT_SIDES = ARTIFACT_DIR / "vuelo5.py"
 
 
 def translate_legacy_args(argv: list[str]) -> list[str]:
@@ -31,6 +34,9 @@ def translate_legacy_args(argv: list[str]) -> list[str]:
     index = 0
     while index < len(argv):
         arg = argv[index]
+        if arg == "--lados":  # handled in main()
+            index += 1
+            continue
         if arg == "--no-video":
             # vuelo.py never uses the camera.
             index += 1
@@ -57,12 +63,14 @@ def translate_legacy_args(argv: list[str]) -> list[str]:
 
 def main(argv: list[str] | None = None) -> None:
     """Run the simple flight."""
-    forwarded = translate_legacy_args(sys.argv[1:] if argv is None else argv)
+    args = sys.argv[1:] if argv is None else argv
+    flight = FLIGHT_SIDES if "--lados" in args else FLIGHT
+    forwarded = translate_legacy_args(args)
     previous_argv, previous_path = sys.argv, list(sys.path)
     try:
-        sys.argv = [str(FLIGHT), *forwarded]
+        sys.argv = [str(flight), *forwarded]
         sys.path.insert(0, str(ARTIFACT_DIR))
-        runpy.run_path(str(FLIGHT), run_name="__main__")
+        runpy.run_path(str(flight), run_name="__main__")
     finally:
         sys.argv = previous_argv
         sys.path[:] = previous_path

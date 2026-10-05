@@ -14,6 +14,11 @@ class AppEntryTest(unittest.TestCase):
         self.assertEqual(app.FLIGHT.name, "vuelo.py")
         self.assertTrue(app.FLIGHT.exists())
 
+    def test_lados_selects_the_five_input_flight(self) -> None:
+        self.assertEqual(app.FLIGHT_SIDES.name, "vuelo5.py")
+        self.assertTrue(app.FLIGHT_SIDES.exists())
+        self.assertEqual(app.translate_legacy_args(["--lados", "--dry-run"]), ["--dry-run"])
+
     def test_dry_run_and_replay_pass_through(self) -> None:
         self.assertEqual(app.translate_legacy_args(["--dry-run", "--replay", "x.csv"]), ["--dry-run", "--replay", "x.csv"])
 

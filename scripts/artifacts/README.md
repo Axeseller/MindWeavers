@@ -20,6 +20,21 @@ Keep the eyes open while flying: without the cerrar_ojos input, a closure is fil
 4 still reads as a blink (back). The neck turn counts to either side; now and then the return swing adds an extra
 forward.
 
+### With left and right: `vuelo5.py`
+A copy of the same flight plus two inputs (`vuelo.py` stays as it is):
+
+| Gesture | Action |
+|---|---|
+| smile (happy) | D: right 1 s |
+| frown (angry) | A: left 1 s |
+
+```bash
+python scripts/artifacts/calibrate.py --inputs jaw,cuello,blink,angry,happy
+python src/app.py --lados --dry-run       # or: python scripts/artifacts/vuelo5.py --dry-run
+python src/app.py --lados
+```
+On the recordings happy reads 13 of 14 and angry 12 of 14, and they never read as each other.
+
 ## Full set: `fly.py`
 
 Seven inputs, the ones on the whiteboard. `fly.py` runs them all on one stream and an arbiter makes sure one

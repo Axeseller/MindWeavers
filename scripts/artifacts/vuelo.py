@@ -35,6 +35,11 @@ from Mover import get_keyboard_input  # noqa: E402
 
 INPUTS = ("jaw", "cuello", "blink")
 KEYS = {"cuello": "w", "blink": "s"}  # jaw is q or e depending on whether it is flying
+CONTROLS = (
+    "  JAW clench   -> Q takeoff (1st) / E land (2nd)",
+    "  Turn head   -> W forward (either side)",
+    "  BLINK       -> S back",
+)
 PULSE_S = 1.0  # how long a forward/back command is held
 RC_REFRESH_S = 0.1  # resend the current RC command this often, like Mover.py's loop (keeps the Tello awake)
 MIN_BATTERY = 20
@@ -73,11 +78,11 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def build_arbiter(args: argparse.Namespace) -> InputArbiter:
+def build_arbiter(args: argparse.Namespace, inputs: tuple[str, ...] = INPUTS) -> InputArbiter:
     if load_calibration() and not args.no_calibration:
-        arbiter = InputArbiter(INPUTS, params=calibrated_params())
+        arbiter = InputArbiter(inputs, params=calibrated_params())
     else:
-        arbiter = InputArbiter(INPUTS)
+        arbiter = InputArbiter(inputs)
     for item in args.threshold:
         name, _, value = item.partition("=")
         arbiter.with_threshold(name, float(value))
@@ -104,15 +109,16 @@ def connect_tello(dry_run: bool):
 class Flight:
     """Executes Mover.py commands and holds forward/back for PULSE_S, then hovers."""
 
-    def __init__(self, tello) -> None:
+    def __init__(self, tello, keys: dict[str, str] = KEYS) -> None:
         self.tello = tello
+        self.keys = keys
         self.is_flying = False
         self._rc = HOVER
         self._rc_until = 0.0
         self._next_send = 0.0
 
     def gesture(self, name: str, now: float) -> str:
-        key = ("e" if self.is_flying else "q") if name == "jaw" else KEYS[name]
+        key = ("e" if self.is_flying else "q") if name == "jaw" else self.keys[name]
         command, rc = get_keyboard_input(ord(key))
         if command == "TAKEOFF" and not self.is_flying:
             print("--> Despegando...")
@@ -164,21 +170,22 @@ def drain(client) -> None:
         pass
 
 
-def main() -> None:
+def main(inputs: tuple[str, ...] = INPUTS, keys: dict[str, str] = KEYS, controls: tuple[str, ...] = CONTROLS) -> None:
+    """Run the flight with these inputs; `keys` maps each non-jaw input to its Mover.py key."""
     args = parse_args()
     replay = args.replay is not None
     dry_run = args.dry_run or replay
     print(f"Mode: {'DRY-RUN (no drone)' if dry_run else 'LIVE - real Tello'}")
-    arbiter = build_arbiter(args)
+    arbiter = build_arbiter(args, inputs)
     source = f"calibrated ({CALIBRATION})" if load_calibration() and not args.no_calibration else "tested defaults"
     print(f"Thresholds: {source}")
-    print("  " + "  ".join(f"{name}={arbiter.detectors[name].params.threshold:g}" for name in INPUTS))
+    print("  " + "  ".join(f"{name}={arbiter.detectors[name].params.threshold:g}" for name in inputs))
 
     # 1. Connect to the drone and check the battery (as Tello/Inicio.py does)
     tello = connect_tello(dry_run)
     if tello is None:
         return
-    flight = Flight(tello)
+    flight = Flight(tello, keys)
 
     # 2. Subscribe to the headset (or the recording)
     client = CsvReplayClient(args.replay) if replay else LslClient()
@@ -186,9 +193,9 @@ def main() -> None:
         raise SystemExit(1)
 
     clock = client.now if replay else time.monotonic
-    print("\n  JAW clench   -> Q takeoff (1st) / E land (2nd)")
-    print("  Turn head   -> W forward (either side)")
-    print("  BLINK       -> S back")
+    print()
+    for line in controls:
+        print(line)
     print("  Ctrl+C      -> land and exit\n")
 
     # 3. One gesture at a time from the arbiter, sent as Mover.py would
@@ -205,7 +212,7 @@ def main() -> None:
             if len(window) < SAMPLE_RATE:
                 continue
 
-            values = {name: artifact_feature(window, ARTIFACT_CLEANING[name]) for name in INPUTS}
+            values = {name: artifact_feature(window, ARTIFACT_CLEANING[name]) for name in inputs}
             gauges = {name: artifact_feature(window, spec) for name, spec in GAUGE_CLEANING.items()}
             now = clock()
             confirmed = arbiter.update(values, now, gauges)
@@ -218,10 +225,10 @@ def main() -> None:
                 print(f">>> {confirmed:7s} {stamp}-> {flight.gesture(confirmed, now)}")
                 if confirmed == "jaw":  # takeoff/land block for seconds; start fresh after them
                     drain(client)
-                    arbiter = build_arbiter(args)
+                    arbiter = build_arbiter(args, inputs)
             elif now >= next_status:
                 state = "FLYING" if flight.is_flying else "grounded"
-                print("  ".join(f"{name}={values[name]:6.1f}" for name in INPUTS) + f"   {state}")
+                print("  ".join(f"{name}={values[name]:6.1f}" for name in inputs) + f"   {state}")
                 next_status = now + STATUS_INTERVAL_S
 
             flight.tick(now)
