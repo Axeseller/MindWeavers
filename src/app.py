@@ -9,6 +9,7 @@
     python src/app.py               # REAL Tello (connect to its Wi-Fi first); Ctrl+C lands
 
     python src/app.py --lados       # the same plus smile -> D right and frown -> A left (vuelo5.py)
+    python src/app.py --giro        # --lados plus eyes closed -> turn 90° right (vuelo6.py)
 
 The flight itself lives in scripts/artifacts/vuelo.py; this file keeps `src/app.py` as the one command to run and
 translates the flags of the old app.py. Calibrate once per person and session:
@@ -26,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT_DIR = ROOT / "scripts" / "artifacts"
 FLIGHT = ARTIFACT_DIR / "vuelo.py"
 FLIGHT_SIDES = ARTIFACT_DIR / "vuelo5.py"
+FLIGHT_TURN = ARTIFACT_DIR / "vuelo6.py"
 
 
 def translate_legacy_args(argv: list[str]) -> list[str]:
@@ -34,7 +36,7 @@ def translate_legacy_args(argv: list[str]) -> list[str]:
     index = 0
     while index < len(argv):
         arg = argv[index]
-        if arg == "--lados":  # handled in main()
+        if arg in ("--lados", "--giro"):  # handled in main()
             index += 1
             continue
         if arg == "--no-video":
@@ -74,7 +76,7 @@ def main(argv: list[str] | None = None) -> None:
         except (AttributeError, ValueError):
             pass
     args = sys.argv[1:] if argv is None else argv
-    flight = FLIGHT_SIDES if "--lados" in args else FLIGHT
+    flight = FLIGHT_TURN if "--giro" in args else FLIGHT_SIDES if "--lados" in args else FLIGHT
     forwarded = translate_legacy_args(args)
     previous_argv, previous_path = sys.argv, list(sys.path)
     try:

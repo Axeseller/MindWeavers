@@ -19,6 +19,11 @@ class AppEntryTest(unittest.TestCase):
         self.assertTrue(app.FLIGHT_SIDES.exists())
         self.assertEqual(app.translate_legacy_args(["--lados", "--dry-run"]), ["--dry-run"])
 
+    def test_giro_selects_the_six_input_flight(self) -> None:
+        self.assertEqual(app.FLIGHT_TURN.name, "vuelo6.py")
+        self.assertTrue(app.FLIGHT_TURN.exists())
+        self.assertEqual(app.translate_legacy_args(["--giro", "--dry-run"]), ["--dry-run"])
+
     def test_dry_run_and_replay_pass_through(self) -> None:
         self.assertEqual(app.translate_legacy_args(["--dry-run", "--replay", "x.csv"]), ["--dry-run", "--replay", "x.csv"])
 

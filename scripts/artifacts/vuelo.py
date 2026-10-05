@@ -68,6 +68,9 @@ class DryRunTello:
     def land(self) -> None:
         print("[dry-run] tello.land()")
 
+    def rotate_clockwise(self, degrees: int) -> None:
+        print(f"[dry-run] tello.rotate_clockwise({degrees})")
+
     def send_rc_control(self, lr: int, fb: int, ud: int, yv: int) -> None:
         pass
 
@@ -146,17 +149,24 @@ def takeoff_diagnosis(tello, error: Exception) -> str:
 
 
 class Flight:
-    """Executes Mover.py commands and holds forward/back for PULSE_S, then hovers."""
+    """Executes Mover.py commands and holds forward/back for PULSE_S, then hovers.
 
-    def __init__(self, tello, keys: dict[str, str] = KEYS) -> None:
+    `turns` maps an input to an exact clockwise turn in degrees (tello.rotate_clockwise): Mover.py's R/T keys only
+    spin while held, so they cannot give a precise angle.
+    """
+
+    def __init__(self, tello, keys: dict[str, str] = KEYS, turns: dict[str, int] | None = None) -> None:
         self.tello = tello
         self.keys = keys
+        self.turns = turns or {}
         self.is_flying = False
         self._rc = HOVER
         self._rc_until = 0.0
         self._next_send = 0.0
 
     def gesture(self, name: str, now: float) -> str:
+        if name in self.turns:
+            return self.turn(self.turns[name])
         key = ("e" if self.is_flying else "q") if name == "jaw" else self.keys[name]
         command, rc = get_keyboard_input(ord(key))
         if command == "TAKEOFF" and not self.is_flying:
@@ -209,6 +219,20 @@ class Flight:
         print("Programa finalizado de forma segura.")
 
 
+    def turn(self, degrees: int) -> str:
+        """Exact turn to the right; blocks until the Tello finishes it."""
+        if not self.is_flying:
+            return f"turn {degrees}° ignored (take off first with the jaw)"
+        self.stop()
+        print(f"--> Girando {degrees}° a la derecha...")
+        try:
+            self.tello.rotate_clockwise(degrees)
+        except Exception as error:  # the drone refused or timed out: keep flying, hover
+            print(f"El Tello no confirmó el giro: {error}")
+            return f"TURN {degrees}° FAILED"
+        return f"TURN {degrees}° RIGHT"
+
+
 def drain(client) -> None:
     """Drop the samples that queued while takeoff/land blocked, so old gestures are not replayed."""
     if isinstance(client, CsvReplayClient):
@@ -217,8 +241,14 @@ def drain(client) -> None:
         pass
 
 
-def main(inputs: tuple[str, ...] = INPUTS, keys: dict[str, str] = KEYS, controls: tuple[str, ...] = CONTROLS) -> None:
-    """Run the flight with these inputs; `keys` maps each non-jaw input to its Mover.py key."""
+def main(
+    inputs: tuple[str, ...] = INPUTS,
+    keys: dict[str, str] = KEYS,
+    controls: tuple[str, ...] = CONTROLS,
+    turns: dict[str, int] | None = None,
+) -> None:
+    """Run the flight with these inputs; `keys` maps each non-jaw input to its Mover.py key, `turns` to an exact
+    clockwise turn."""
     args = parse_args()
     replay = args.replay is not None
     dry_run = args.dry_run or replay
@@ -239,7 +269,7 @@ def main(inputs: tuple[str, ...] = INPUTS, keys: dict[str, str] = KEYS, controls
     tello = connect_tello(dry_run)
     if tello is None:
         return
-    flight = Flight(tello, keys)
+    flight = Flight(tello, keys, turns)
 
     # 2. Subscribe to the headset (or the recording)
     client = CsvReplayClient(args.replay) if replay else LslClient()
@@ -289,6 +319,10 @@ def main(inputs: tuple[str, ...] = INPUTS, keys: dict[str, str] = KEYS, controls
                 if confirmed == "jaw":  # takeoff/land block for seconds; start fresh after them
                     drain(client)
                     arbiter = build_arbiter(args, inputs)
+                elif turns and confirmed in turns:
+                    # The turn blocks too. Keep the arbiter: the eyes may still be closed, and a fresh detector
+                    # would read that as a new closure and turn again.
+                    drain(client)
             elif now >= next_status:
                 state = "FLYING" if flight.is_flying else "grounded"
                 print("  ".join(f"{name}={values[name]:6.1f}" for name in inputs) + f"   {state}")

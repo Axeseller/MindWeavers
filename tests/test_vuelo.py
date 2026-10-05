@@ -9,6 +9,7 @@ sys.path.insert(0, str(ROOT / "scripts" / "artifacts"))
 
 import vuelo  # noqa: E402
 import vuelo5  # noqa: E402
+import vuelo6  # noqa: E402
 
 
 class RecordingTello(vuelo.DryRunTello):
@@ -23,6 +24,9 @@ class RecordingTello(vuelo.DryRunTello):
 
     def send_rc_control(self, lr: int, fb: int, ud: int, yv: int) -> None:
         self.calls.append((lr, fb, ud, yv))
+
+    def rotate_clockwise(self, degrees: int) -> None:
+        self.calls.append(f"cw {degrees}")
 
 
 class FailingTello(RecordingTello):
@@ -55,6 +59,28 @@ class TakeoffFailureTest(unittest.TestCase):
         text = vuelo.takeoff_diagnosis(FailingTello("error No valid imu"), Exception("Latest response: 'error No valid imu'"))
         self.assertIn("IMU", text)
         self.assertIn("sobrecalentado", text)
+
+
+class TurnTest(unittest.TestCase):
+    def test_eyes_closed_turns_exactly_90_right(self) -> None:
+        self.assertIn("cerrar_ojos", vuelo6.INPUTS)
+        tello = RecordingTello()
+        flight = vuelo.Flight(tello, vuelo6.KEYS, vuelo6.TURNS)
+        self.assertIn("ignored", flight.gesture("cerrar_ojos", 0.0))  # not on the ground
+        flight.gesture("jaw", 1.0)
+        self.assertEqual(flight.gesture("cerrar_ojos", 2.0), "TURN 90° RIGHT")
+        self.assertIn("cw 90", tello.calls)
+        self.assertTrue(flight.is_flying)
+
+    def test_failed_turn_keeps_flying(self) -> None:
+        class Refuses(RecordingTello):
+            def rotate_clockwise(self, degrees: int) -> None:
+                raise Exception("Command 'cw 90' was unsuccessful")
+
+        flight = vuelo.Flight(Refuses(), vuelo6.KEYS, vuelo6.TURNS)
+        flight.gesture("jaw", 0.0)
+        self.assertIn("FAILED", flight.gesture("cerrar_ojos", 1.0))
+        self.assertTrue(flight.is_flying)
 
 
 class FlightKeysTest(unittest.TestCase):

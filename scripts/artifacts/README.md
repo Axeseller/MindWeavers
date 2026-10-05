@@ -35,6 +35,17 @@ python src/app.py --lados
 ```
 On the recordings happy reads 13 of 14 and angry 12 of 14, and they never read as each other.
 
+### Plus a 90° turn: `vuelo6.py`
+`vuelo5.py` plus closing the eyes (~1.5 s) -> exact turn of 90° to the right (`tello.rotate_clockwise(90)`), once
+per closure: open the eyes before closing them again for another turn.
+
+```bash
+python scripts/artifacts/calibrate.py --inputs jaw,cerrar_ojos,cuello,blink,angry,happy
+python src/app.py --giro --dry-run        # or: python scripts/artifacts/vuelo6.py --dry-run
+python src/app.py --giro
+```
+On the recordings: 8 turns from 9 closures, never two turns for one closure.
+
 ## Full set: `fly.py`
 
 Seven inputs, the ones on the whiteboard. `fly.py` runs them all on one stream and an arbiter makes sure one
