@@ -12,7 +12,7 @@ data/baselines/*
 data/recordings/*
 !data/recordings/.gitkeep
 
-*.csv
+
 *.png
 *.jpg
 *.jpeg
