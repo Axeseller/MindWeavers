@@ -25,7 +25,7 @@ from pathlib import Path
 
 import _paths  # noqa: F401
 from _live import CsvReplayClient
-from eeg.arbiter import InputArbiter
+from eeg.arbiter import GATES, InputArbiter
 from eeg.calibration import DEFAULT_PATH as CALIBRATION, calibrated_params, load as load_calibration
 from eeg.preprocess import ARTIFACT_CLEANING, GAUGE_CLEANING, SAMPLE_RATE, artifact_feature
 from lsl.client import DEFAULT_STREAM_NAME, LslClient
@@ -80,14 +80,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--threshold", action="append", default=[], metavar="INPUT=VALUE", help="Override a threshold")
     parser.add_argument("--why", action="store_true", help="Also print the firings the arbiter dropped, and why")
     parser.add_argument("--no-calibration", action="store_true", help="Ignore data/calibration/thresholds.json")
+    parser.add_argument(
+        "--loose-faces",
+        action="store_true",
+        help="Drop the shape checks on angry/happy (EMG pattern, eyes, blink): only their thresholds decide",
+    )
     return parser.parse_args()
 
 
 def build_arbiter(args: argparse.Namespace, inputs: tuple[str, ...] = INPUTS) -> InputArbiter:
+    gates = {k: v for k, v in GATES.items() if k not in ("angry", "happy")} if args.loose_faces else GATES
     if load_calibration() and not args.no_calibration:
-        arbiter = InputArbiter(inputs, params=calibrated_params())
+        arbiter = InputArbiter(inputs, params=calibrated_params(), gates=gates)
     else:
-        arbiter = InputArbiter(inputs)
+        arbiter = InputArbiter(inputs, gates=gates)
     for item in args.threshold:
         name, _, value = item.partition("=")
         arbiter.with_threshold(name, float(value))

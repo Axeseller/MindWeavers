@@ -48,17 +48,22 @@ def translate_legacy_args(argv: list[str]) -> list[str]:
             )
         if arg == "--threshold":
             if index + 1 == len(argv):
-                raise SystemExit("src/app.py --threshold requires a numeric value.")
-            translated.extend(("--threshold", f"jaw={argv[index + 1]}"))
+                raise SystemExit("src/app.py --threshold requires a value: 40 (jaw) or INPUT=VALUE.")
+            translated.extend(("--threshold", _threshold(argv[index + 1])))
             index += 2
             continue
         if arg.startswith("--threshold="):
-            translated.extend(("--threshold", f"jaw={arg.partition('=')[2]}"))
+            translated.extend(("--threshold", _threshold(arg.partition("=")[2])))
             index += 1
             continue
         translated.append(arg)
         index += 1
     return translated
+
+
+def _threshold(value: str) -> str:
+    """A bare number is the old app.py's jaw threshold; INPUT=VALUE passes through (happy=1.5, angry=4)."""
+    return value if "=" in value else f"jaw={value}"
 
 
 def main(argv: list[str] | None = None) -> None:

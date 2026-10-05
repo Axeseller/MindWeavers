@@ -26,6 +26,8 @@ class AppEntryTest(unittest.TestCase):
         self.assertEqual(app.translate_legacy_args(["--no-video"]), [])
         self.assertEqual(app.translate_legacy_args(["--threshold", "30"]), ["--threshold", "jaw=30"])
         self.assertEqual(app.translate_legacy_args(["--threshold=30"]), ["--threshold", "jaw=30"])
+        self.assertEqual(app.translate_legacy_args(["--threshold", "happy=1.5"]), ["--threshold", "happy=1.5"])
+        self.assertEqual(app.translate_legacy_args(["--threshold=angry=4"]), ["--threshold", "angry=4"])
         with self.assertRaises(SystemExit):
             app.translate_legacy_args(["--no-lsl"])
 
