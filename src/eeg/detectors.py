@@ -22,8 +22,6 @@ class DetectorConfig:
 
 
 JAW_TAKEOFF_THRESHOLD = 40.0
-BLINK_PHOTO_THRESHOLD = 55.0
-EYES_CLOSED_THRESHOLD = 6.0
 
 
 def jaw_takeoff_config(threshold: float = JAW_TAKEOFF_THRESHOLD) -> DetectorConfig:
@@ -38,21 +36,6 @@ def jaw_takeoff_config(threshold: float = JAW_TAKEOFF_THRESHOLD) -> DetectorConf
         eyes_closed_threshold=float("inf"),
     )
 
-
-def camera_blink_config(
-    blink_threshold: float = BLINK_PHOTO_THRESHOLD,
-    eyes_closed_threshold: float = EYES_CLOSED_THRESHOLD,
-) -> DetectorConfig:
-    """Calibrated from blink3secinterval / cerrarojos3sec / baselineojoscerrados."""
-    return DetectorConfig(
-        jaw_rms_threshold=float("inf"),
-        blink_peak_threshold=blink_threshold,
-        emit_single_blink=True,
-        blink_pair_window=0.0,
-        eyes_closed_threshold=eyes_closed_threshold,
-        eyes_closed_min_s=2.0,
-        refractory_s=0.8,
-    )
 
 
 class ArtifactDetector:
@@ -170,3 +153,98 @@ class ArtifactDetector:
             self._last_blink_at = 0.0
             return Event.DOUBLE_BLINK
         return None
+
+
+# ---------------------------------------------------------------------------
+# One detector per recorded artifact. The feature comes from eeg.preprocess.ARTIFACT_CLEANING[name];
+# these are the decision parameters, tuned on the 2026-10-04 recordings through the arbiter
+# (scripts/artifacts/calibrate.py --recordings). A per-session calibration overrides the thresholds.
+# ---------------------------------------------------------------------------
+INF = float("inf")
+
+
+@dataclass(frozen=True)
+class ArtifactParams:
+    """When a feature value counts as the artifact.
+
+    threshold:    the feature must reach this to start an activation.
+    min_s/max_s:  how long the activation must last. Shorter or longer is ignored.
+    hold:         fire once while still active after min_s (eyes closed), instead of on release.
+    direction:    0 for a magnitude. +1/-1 for a signed feature: only an onset of that sign fires,
+                  and an onset of the other sign still starts the refractory so its return is not read.
+    ceiling:      if the activation ever exceeds this, it was a bigger artifact and is discarded.
+    refractory_s: nothing new starts until this long after an activation ends.
+    release_ratio: the activation ends when the feature drops below threshold * release_ratio.
+    """
+
+    threshold: float
+    min_s: float = 0.0
+    max_s: float = INF
+    hold: bool = False
+    direction: int = 0
+    ceiling: float = INF
+    refractory_s: float = 1.0
+    release_ratio: float = 0.6
+
+
+ARTIFACT_PARAMS: dict[str, ArtifactParams] = {
+    "jaw": ArtifactParams(threshold=JAW_TAKEOFF_THRESHOLD, min_s=0.5, max_s=2.0, refractory_s=0.8),
+    "blink": ArtifactParams(threshold=30.0, max_s=0.8, refractory_s=0.8),
+    "cerrar_ojos": ArtifactParams(threshold=3.3, min_s=1.5, hold=True, refractory_s=1.0),
+    "cuello": ArtifactParams(threshold=10.0, min_s=0.1, refractory_s=1.5),
+    "puno": ArtifactParams(threshold=2.5, min_s=0.15, ceiling=8.0, refractory_s=1.5),
+    "angry": ArtifactParams(threshold=6.0, min_s=0.2, ceiling=25.0, refractory_s=1.5),
+    "happy": ArtifactParams(threshold=2.0, min_s=0.2, ceiling=10.0, refractory_s=1.5),
+}
+
+
+class ThresholdDetector:
+    """Hysteresis + duration + refractory on one feature. `update` returns True when the artifact is detected;
+    `peak` is then the strongest value of that activation."""
+
+    def __init__(self, params: ArtifactParams) -> None:
+        self.params = params
+        self._active = False
+        self._sign = 0
+        self._started_at = 0.0
+        self._emitted = False
+        self._refractory_until = 0.0
+        self.peak = 0.0
+
+    @property
+    def active(self) -> bool:
+        return self._active
+
+    @property
+    def started_at(self) -> float:
+        """When the current (or last) activation began."""
+        return self._started_at
+
+    def update(self, value: float, timestamp: float) -> bool:
+        p = self.params
+        level = abs(value) if p.direction else value
+        if not self._active:
+            if timestamp < self._refractory_until or level < p.threshold:
+                return False
+            self._active = True
+            self._sign = 1 if value >= 0 else -1
+            self._started_at = timestamp
+            self._emitted = False
+            self.peak = value
+            return False
+
+        if level > abs(self.peak):
+            self.peak = value
+        duration = timestamp - self._started_at
+        wanted = not p.direction or self._sign == p.direction
+        if p.hold and wanted and not self._emitted and duration >= p.min_s and abs(self.peak) <= p.ceiling:
+            self._emitted = True
+            return True
+        if level >= p.threshold * p.release_ratio:
+            return False
+
+        self._active = False
+        self._refractory_until = timestamp + p.refractory_s
+        if p.hold or not wanted or abs(self.peak) > p.ceiling:
+            return False
+        return p.min_s <= duration <= p.max_s

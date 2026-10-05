@@ -1,5 +1,9 @@
 # Phase 3 — Action policy and EEG readiness
 
+> Superseded for runtime artifact control by `src/app.py` (`scripts/artifacts/vuelo6.py`), which
+> uses `eeg.arbiter.InputArbiter` and per-session calibration. This document
+> remains as the design record for the legacy `CommandMapper` path.
+
 ## Goal
 
 Every basic skill can be bound to an EEG event by editing the mapper only, and short jaw clench toggles takeoff/land.
@@ -25,7 +29,6 @@ Every basic skill can be bound to an EEG event by editing the mapper only, and s
 
 3. **`docs/mapping.md`** updated to the new `JAW_SHORT` meaning.
 
-`scripts/jaw_takeoff.py` stays a one-shot mission and is not turned into the general skill API.
 
 ## Safety
 
@@ -37,4 +40,4 @@ Every basic skill can be bound to an EEG event by editing the mapper only, and s
 
 - `tests/test_command_mapper.py`: `JAW_SHORT` toggles by `is_flying`, cooldown blocks repeats, long/emergency/blink mappings unchanged.
 - Dispatch test: every movement `Action` starts the matching skill on a dry-run controller.
-- `python src/app.py --dry-run --no-lsl` still runs.
+- `python scripts/manual_mode.py --no-eeg` still runs.

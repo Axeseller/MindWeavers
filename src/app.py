@@ -1,110 +1,105 @@
+"""Main entry point: flight with the Unicorn, through Tello/Mover.py (scripts/artifacts/vuelo6.py).
+
+    jaw clench (1st)   -> Q: takeoff
+    turn the head      -> W: forward 1 s (either side)
+    blink              -> S: back 1 s
+    smile (happy)      -> D: right 1 s
+    frown (angry)      -> A: left 1 s
+    eyes closed ~1.5 s -> turn 90° right
+    jaw clench (2nd)   -> E: land
+
+    python src/app.py --dry-run     # no drone: prints what it would send
+    python src/app.py               # REAL Tello (connect to its Wi-Fi first); Ctrl+C lands
+
+Fewer inputs, if some do not read well for the pilot:
+    python src/app.py --lados       # without the eyes-closed turn (vuelo5.py)
+    python src/app.py --simple      # only jaw, neck and blink (vuelo.py)
+
+Calibrate once per person and session:
+`python scripts/artifacts/calibrate.py --inputs jaw,cerrar_ojos,cuello,blink,angry,happy`.
+This file also translates the flags of the old app.py.
+"""
+
 from __future__ import annotations
 
-import argparse
+import runpy
 import sys
-import time
 from pathlib import Path
 
-SRC = Path(__file__).resolve().parent
-ROOT = SRC.parent
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
-
-from eeg.detectors import ArtifactDetector
-from eeg.preprocess import extract_features, preprocess_window
-from lsl.client import DEFAULT_STREAM_NAME, LslClient
-from mapping.commands import Action, CommandMapper
-from tello import skills
-from tello.controller import TelloController, print_keyboard_help
-
-PHOTO_DIR = ROOT / "data" / "recordings"
-LOOP_SLEEP_S = 0.01
-
-ACTION_SKILLS = {
-    Action.FORWARD: "forward",
-    Action.BACK: "back",
-    Action.LEFT: "left",
-    Action.RIGHT: "right",
-    Action.UP: "up",
-    Action.DOWN: "down",
-    Action.YAW_CW: "yaw_clockwise",
-    Action.YAW_CCW: "yaw_counterclockwise",
-}
+ROOT = Path(__file__).resolve().parents[1]
+ARTIFACT_DIR = ROOT / "scripts" / "artifacts"
+FLIGHT_SIMPLE = ARTIFACT_DIR / "vuelo.py"
+FLIGHT_SIDES = ARTIFACT_DIR / "vuelo5.py"
+FLIGHT_TURN = ARTIFACT_DIR / "vuelo6.py"
+FLIGHT = FLIGHT_TURN  # the default: all six inputs
+CHOICES = {"--simple": FLIGHT_SIMPLE, "--lados": FLIGHT_SIDES, "--giro": FLIGHT_TURN}
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Unicorn raw LSL → Tello commands")
-    parser.add_argument("--dry-run", action="store_true", help="Print commands, do not connect to Tello")
-    parser.add_argument("--no-video", action="store_true", help="Skip Tello camera stream")
-    parser.add_argument("--no-lsl", action="store_true", help="Keyboard only (no headset)")
-    parser.add_argument("--stream", default=DEFAULT_STREAM_NAME, help="Unicorn raw LSL stream name")
-    return parser.parse_args()
+def translate_legacy_args(argv: list[str]) -> list[str]:
+    """Translate the flags of the old app.py into vuelo.py's."""
+    translated: list[str] = []
+    index = 0
+    while index < len(argv):
+        arg = argv[index]
+        if arg in CHOICES:  # handled by pick_flight()
+            index += 1
+            continue
+        if arg == "--no-video":
+            # vuelo.py never uses the camera.
+            index += 1
+            continue
+        if arg == "--no-lsl":
+            raise SystemExit(
+                "src/app.py --no-lsl has been retired. "
+                "Use `python scripts/manual_mode.py --no-eeg` for keyboard-only flight."
+            )
+        if arg == "--threshold":
+            if index + 1 == len(argv):
+                raise SystemExit("src/app.py --threshold requires a value: 40 (jaw) or INPUT=VALUE.")
+            translated.extend(("--threshold", _threshold(argv[index + 1])))
+            index += 2
+            continue
+        if arg.startswith("--threshold="):
+            translated.extend(("--threshold", _threshold(arg.partition("=")[2])))
+            index += 1
+            continue
+        translated.append(arg)
+        index += 1
+    return translated
 
 
-def apply_action(controller: TelloController, action: str) -> None:
-    if action == Action.TAKEOFF:
-        controller.takeoff()
-    elif action == Action.LAND:
-        controller.land()
-    elif action == Action.EMERGENCY:
-        controller.emergency_land()
-    elif action in ACTION_SKILLS:
-        skills.start_skill(controller, ACTION_SKILLS[action])
-    elif action == Action.PHOTO:
-        controller.take_photo(PHOTO_DIR)
+def _threshold(value: str) -> str:
+    """A bare number is the old app.py's jaw threshold; INPUT=VALUE passes through (happy=1.5, angry=4)."""
+    return value if "=" in value else f"jaw={value}"
 
 
-def process_eeg(client: LslClient, detector: ArtifactDetector, mapper: CommandMapper, flying: bool) -> list[str]:
-    client.pull_chunk(timeout=0.0)
-    window = preprocess_window(client.window())
-    jaw_rms, blink_amp = extract_features(window)
-    now = time.monotonic()
-    events = detector.update(jaw_rms, blink_amp, now)
-    actions: list[str] = []
-    for event in events:
-        print(f"EEG event: {event}  jaw_rms={jaw_rms:.1f}  blink={blink_amp:.1f}")
-        action = mapper.map(event, flying, now)
-        if action:
-            actions.append(action)
-    return actions
+def pick_flight(args: list[str]) -> Path:
+    """--simple / --lados choose a smaller flight; otherwise all six inputs."""
+    for flag, path in CHOICES.items():
+        if flag in args:
+            return path
+    return FLIGHT
 
 
-def run(args: argparse.Namespace) -> None:
-    controller = TelloController(dry_run=args.dry_run)
-    client = LslClient()
-    detector = ArtifactDetector()
-    mapper = CommandMapper(cooldown_s=1.0)
-    use_lsl = not args.no_lsl
-
-    if not controller.connect(with_video=not args.no_video):
-        return
-    if use_lsl and not client.connect(stream_name=args.stream):
-        if not args.dry_run:
-            controller.shutdown()
-            return
-        print("Continuing in dry-run without LSL (keyboard only).")
-        use_lsl = False
-
-    print_keyboard_help()
-    running = True
+def main(argv: list[str] | None = None) -> None:
+    """Run the simple flight."""
+    for stream in (sys.stdout, sys.stderr):  # see scripts/artifacts/_paths.py: Git Bash would buffer the output
+        try:
+            stream.reconfigure(line_buffering=True)
+        except (AttributeError, ValueError):
+            pass
+    args = sys.argv[1:] if argv is None else argv
+    flight = pick_flight(args)
+    forwarded = translate_legacy_args(args)
+    previous_argv, previous_path = sys.argv, list(sys.path)
     try:
-        while running:
-            if use_lsl:
-                for action in process_eeg(client, detector, mapper, controller.is_flying):
-                    apply_action(controller, action)
-            key = controller.show_video()
-            key_state = controller.handle_keyboard(key)
-            if key_state == "exit":
-                running = False
-            elif key_state != "override":
-                controller.apply_motion()
-            time.sleep(LOOP_SLEEP_S)
-    except KeyboardInterrupt:
-        print("\nInterrupted.")
+        sys.argv = [str(flight), *forwarded]
+        sys.path.insert(0, str(ARTIFACT_DIR))
+        runpy.run_path(str(flight), run_name="__main__")
     finally:
-        client.close()
-        controller.shutdown()
+        sys.argv = previous_argv
+        sys.path[:] = previous_path
 
 
 if __name__ == "__main__":
-    run(parse_args())
+    main()

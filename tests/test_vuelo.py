@@ -1,0 +1,129 @@
+from __future__ import annotations
+
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts" / "artifacts"))
+
+import vuelo  # noqa: E402
+import vuelo5  # noqa: E402
+import vuelo6  # noqa: E402
+
+
+class RecordingTello(vuelo.DryRunTello):
+    def __init__(self) -> None:
+        self.calls: list = []
+
+    def takeoff(self) -> None:
+        self.calls.append("takeoff")
+
+    def land(self) -> None:
+        self.calls.append("land")
+
+    def send_rc_control(self, lr: int, fb: int, ud: int, yv: int) -> None:
+        self.calls.append((lr, fb, ud, yv))
+
+    def rotate_clockwise(self, degrees: int) -> None:
+        self.calls.append(f"cw {degrees}")
+
+
+class FailingTello(RecordingTello):
+    def __init__(self, response: str) -> None:
+        super().__init__()
+        self.response = response
+        self.fail = True
+
+    def get_highest_temperature(self) -> int:
+        return 92
+
+    def takeoff(self) -> None:
+        if self.fail:
+            raise Exception(f"Command 'takeoff' was unsuccessful for 4 tries. Latest response: '{self.response}'")
+        super().takeoff()
+
+
+class TakeoffFailureTest(unittest.TestCase):
+    def test_failed_takeoff_keeps_running_and_can_retry(self) -> None:
+        tello = FailingTello("error")
+        flight = vuelo.Flight(tello, vuelo.KEYS)
+        self.assertIn("FAILED", flight.gesture("jaw", 0.0))
+        self.assertFalse(flight.is_flying)
+        self.assertIn("ignored", flight.gesture("cuello", 1.0))  # nothing moves on the ground
+        tello.fail = False
+        self.assertIn("TAKEOFF", flight.gesture("jaw", 5.0))
+        self.assertTrue(flight.is_flying)
+
+    def test_diagnosis_names_the_likely_cause(self) -> None:
+        text = vuelo.takeoff_diagnosis(FailingTello("error No valid imu"), Exception("Latest response: 'error No valid imu'"))
+        self.assertIn("IMU", text)
+        self.assertIn("sobrecalentado", text)
+
+
+class TurnTest(unittest.TestCase):
+    def test_eyes_closed_turns_exactly_90_right(self) -> None:
+        self.assertIn("cerrar_ojos", vuelo6.INPUTS)
+        tello = RecordingTello()
+        flight = vuelo.Flight(tello, vuelo6.KEYS, vuelo6.TURNS)
+        self.assertIn("ignored", flight.gesture("cerrar_ojos", 0.0))  # not on the ground
+        flight.gesture("jaw", 1.0)
+        self.assertEqual(flight.gesture("cerrar_ojos", 2.0), "TURN 90° RIGHT")
+        self.assertIn("cw 90", tello.calls)
+        self.assertTrue(flight.is_flying)
+
+    def test_failed_turn_keeps_flying(self) -> None:
+        class Refuses(RecordingTello):
+            def rotate_clockwise(self, degrees: int) -> None:
+                raise Exception("Command 'cw 90' was unsuccessful")
+
+        flight = vuelo.Flight(Refuses(), vuelo6.KEYS, vuelo6.TURNS)
+        flight.gesture("jaw", 0.0)
+        self.assertIn("FAILED", flight.gesture("cerrar_ojos", 1.0))
+        self.assertTrue(flight.is_flying)
+
+
+class FlightKeysTest(unittest.TestCase):
+    def fly(self, keys, names):
+        tello = RecordingTello()
+        flight = vuelo.Flight(tello, keys)
+        flight.gesture("jaw", 0.0)
+        results = []
+        for i, name in enumerate(names):
+            flight.gesture(name, 10.0 * (i + 1))
+            flight.tick(10.0 * (i + 1) + 0.05)
+            results.append(tello.calls[-1])
+        return tello, flight, results
+
+    def test_three_input_flight_is_unchanged(self) -> None:
+        self.assertEqual(vuelo.INPUTS, ("jaw", "cuello", "blink"))
+        _tello, _flight, results = self.fly(vuelo.KEYS, ["cuello", "blink"])
+        self.assertEqual(results, [(0, 50, 0, 0), (0, -50, 0, 0)])
+
+    def test_five_input_flight_adds_left_and_right(self) -> None:
+        self.assertEqual(vuelo5.INPUTS, ("jaw", "cuello", "blink", "angry", "happy"))
+        _tello, _flight, results = self.fly(vuelo5.KEYS, ["cuello", "blink", "happy", "angry"])
+        self.assertEqual(results, [(0, 50, 0, 0), (0, -50, 0, 0), (50, 0, 0, 0), (-50, 0, 0, 0)])
+
+    def test_nothing_moves_while_grounded(self) -> None:
+        tello = RecordingTello()
+        flight = vuelo.Flight(tello, vuelo5.KEYS)
+        for name in ("happy", "angry", "cuello", "blink"):
+            self.assertIn("ignored", flight.gesture(name, 0.0))
+        self.assertEqual(tello.calls, [])
+
+    def test_jaw_takes_off_then_lands(self) -> None:
+        tello, flight, _ = self.fly(vuelo5.KEYS, [])
+        self.assertTrue(flight.is_flying)
+        flight.gesture("jaw", 5.0)
+        self.assertFalse(flight.is_flying)
+        self.assertEqual([c for c in tello.calls if isinstance(c, str)], ["takeoff", "land"])
+
+    def test_movement_returns_to_hover(self) -> None:
+        tello, flight, _ = self.fly(vuelo5.KEYS, ["happy"])
+        flight.tick(20.0)
+        self.assertEqual(tello.calls[-1], (0, 0, 0, 0))
+
+
+if __name__ == "__main__":
+    unittest.main()

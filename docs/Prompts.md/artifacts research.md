@@ -1,5 +1,9 @@
 # `jaw_takeoff.py` execution and skill-building research
 
+> Historical research note: `jaw_takeoff.py`, `analyze_baselines.py` and `fly.py` have since been removed.
+> The current pipeline is `src/app.py` (runs `scripts/artifacts/vuelo6.py`), `eeg.arbiter` and
+> `scripts/artifacts/README.md`.
+
 ## Purpose and scope
 
 `scripts/jaw_takeoff.py` is a one-shot, EEG-triggered mission:
@@ -98,24 +102,17 @@ This document separates the code that is required to create drone skills from su
 - The takeoff script discards `blink_amp`, and its configuration sets blink threshold to infinity. Therefore a double blink cannot affect `jaw_takeoff.py`.
 - The first approximately one second after starting has no detection because the LSL window must fill.
 
-## Reusable multi-skill integration
+## Retired multi-skill integration
 
-`jaw_takeoff.py` intentionally bypasses the general action mapper. For a continuous EEG controller, the reusable integration is in `src/app.py`:
+`jaw_takeoff.py` intentionally bypasses the general action mapper. The former
+`src/app.py` loop used `CommandMapper` to combine jaw and blink events, but it
+is no longer a runtime path. It remains only as a compatibility wrapper.
 
-1. `process_eeg()` performs LSL pull, preprocessing, feature extraction, detection, and event collection.
-2. `CommandMapper.map(event, is_flying, now)` turns an event into one `Action`, including a one-second cooldown for jaw flight actions.
-3. `apply_action()` dispatches that action to `TelloController`.
-
-Current policy:
-
-| Event | Existing mapped action |
-|---|---|
-| `JAW_SHORT` | `TAKEOFF` when grounded; `FORWARD` when flying |
-| `JAW_LONG` | `LAND` |
-| `JAW_EMERGENCY` | `EMERGENCY` |
-| `DOUBLE_BLINK` | `PHOTO` |
-
-For future artifact-controlled skills, this policy layer is the reusable place to add action selection and cooldown rules. It keeps detector logic independent of flight behavior. Extending `Event`, `Action`, the mapper, and `apply_action()` together is necessary when a new gesture should produce a new named action.
+For artifact-controlled skills, use `scripts/artifacts/fly.py`: it extracts
+each artifact feature, submits the candidates to `InputArbiter`, applies
+calibration and gates, then dispatches the confirmed input through
+`SkillRunner`. The current mapping is documented in
+`scripts/artifacts/README.md`.
 
 ## Supporting, but not runtime-required
 
@@ -130,7 +127,9 @@ For future artifact-controlled skills, this policy layer is the reusable place t
 ## Reference or legacy code: do not build new skills on it
 
 - `Tello/Mover.py` directly uses `djitellopy` and duplicates keyboard-to-RC behavior. It is a useful directional reference, but it is not imported by `jaw_takeoff.py` and has no dry-run or shared controller lifecycle.
-- `src/app.py` is a broader continuous application with camera, keyboard override, EEG mapping, and photo support. Reuse its `process_eeg()`/mapper/action pattern as needed; do not copy its entire video loop into a simple timed movement skill.
+- `src/app.py` is a deprecated compatibility wrapper. Do not build new
+  features on it; use `scripts/artifacts/fly.py` for artifact integration and
+  `scripts/manual_mode.py` for keyboard control.
 - `scripts/jaw_takeoff.py` is a good mission template, but its `fly_once()` is deliberately local and only supports takeoff-hover-land. It is not a general movement API.
 
 ## Operational prerequisites and limits
@@ -139,14 +138,15 @@ For future artifact-controlled skills, this policy layer is the reusable place t
 - The first eight stream columns must be the expected EEG channels; the code filters them by position.
 - For physical flight, charge Tello above 20%, connect the laptop to `TELLO-XXXXXX`, and confirm the LSL stream before flight. The Tello hotspot has no internet.
 - Use a clear area and a spotter. The controller’s `is_flying` is local state, so it cannot prove that a failed drone command changed real drone state.
-- `jaw_takeoff.py` has no action mapping for a long-clench emergency; it only reacts to `JAW_SHORT`. In-flight emergency behavior is available in `src/app.py` through `CommandMapper` and `emergency_land()`.
+- `jaw_takeoff.py` has no action mapping for a long-clench emergency; it only reacts to `JAW_SHORT`. The current artifact runner maps the jaw input to takeoff/land through `SkillRunner`.
 - A live connection rejected for low battery returns from `main()` before `controller.shutdown()` runs. No flight is started, but future entry points should preserve a single cleanup path where practical.
 
 ## Classification for creating more skills
 
 1. **Foundation to use for every drone skill:** `TelloController`, its RC tuple convention, `is_flying`, dry-run mode, bounded-duration commands, and `try`/`finally` shutdown.
 2. **Foundation to use only when a skill is EEG-triggered:** `LslClient` -> preprocessing/features -> `ArtifactDetector` -> `Event`; calibrate thresholds before using a live person.
-3. **Policy to use when several gestures/actions coexist:** `Event`/`Action`, `CommandMapper`, and `apply_action()` from `src/app.py`.
+3. **Policy to use when several gestures/actions coexist:** `InputArbiter`,
+   its gates, and `apply()` in `scripts/artifacts/fly.py`.
 4. **Verification to retain:** dry-run first, the jaw-detector unit tests for detector changes, baseline recording/analysis for EEG threshold changes, then controlled hardware testing.
 5. **Code to treat only as examples:** `Tello/Mover.py` and the local `fly_once()` mission. They show mechanics, but `TelloController` is the reusable abstraction.
 
