@@ -17,7 +17,8 @@ from pathlib import Path
 import numpy as np
 
 import _paths  # noqa: F401
-from eeg.detectors import ARTIFACT_PARAMS, ThresholdDetector
+from eeg.calibration import calibrated_params
+from eeg.detectors import ThresholdDetector
 from eeg.preprocess import ARTIFACT_CLEANING, SAMPLE_RATE, artifact_feature
 from lsl.client import DEFAULT_STREAM_NAME, LslClient
 from tello.controller import TelloController
@@ -31,7 +32,7 @@ OnDetect = Callable[[TelloController], bool]
 
 
 def parse_args(name: str, description: str) -> argparse.Namespace:
-    params = ARTIFACT_PARAMS[name]
+    params = calibrated_params()[name]
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--live", action="store_true", help="Connect to the real Tello (default is dry-run)")
     parser.add_argument("--stream", default=DEFAULT_STREAM_NAME, help="Unicorn raw LSL stream name")
@@ -42,7 +43,8 @@ def parse_args(name: str, description: str) -> argparse.Namespace:
 
 
 def make_detector(name: str, threshold: float | None = None) -> ThresholdDetector:
-    params = ARTIFACT_PARAMS[name]
+    """Detector with the calibrated threshold (data/calibration/thresholds.json) unless one is given."""
+    params = calibrated_params()[name]
     if threshold is not None:
         params = replace(params, threshold=threshold)
     return ThresholdDetector(params)

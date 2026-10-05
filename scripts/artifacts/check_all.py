@@ -5,6 +5,7 @@
 Two tables:
 1. Each detector alone (what the single-input scripts do). Off-diagonal numbers are crossovers.
 2. The arbiter (what fly.py does): only one input per gesture, so crossovers should be gone.
+Uses the saved calibration (data/calibration/thresholds.json) when there is one.
 `*` marks the recording(s) of that input; `rest` and `ojos_cerrados_base` should be all zero.
 """
 
@@ -14,9 +15,12 @@ import argparse
 from pathlib import Path
 
 import _paths  # noqa: F401
-from _live import detections, feature_series, load_csv
-from eeg.arbiter import PRIORITY, InputArbiter
-from eeg.preprocess import SAMPLE_RATE
+import numpy as np
+
+from _live import REPLAY_CHUNK, detections, feature_series, load_csv
+from eeg.arbiter import PRIORITY
+from eeg.calibration import Segment, calibrated_params, replay
+from eeg.preprocess import GAUGE_CLEANING, SAMPLE_RATE, artifact_feature
 
 # Recording label -> (file pattern, repetitions in it)
 RECORDINGS: dict[str, tuple[str, int]] = {
@@ -57,16 +61,13 @@ def find(folder: Path, pattern: str) -> Path | None:
     return matches[-1] if matches else None
 
 
-def arbiter_counts(series: dict[str, tuple], inputs: tuple[str, ...], motion: tuple, emg: tuple) -> dict[str, int]:
-    arbiter = InputArbiter(inputs)
-    counts = {name: 0 for name in inputs}
-    times = series[inputs[0]][0]
-    for i, now in enumerate(times):
-        values = {name: float(series[name][1][i]) for name in inputs}
-        confirmed = arbiter.update(values, float(now), motion=float(motion[1][i]), emg=float(emg[1][i]))
-        if confirmed:
-            counts[confirmed] += 1
-    return counts
+def segment(rows, names: tuple[str, ...]) -> Segment:
+    """Replay-ready segment: tick times, every input's feature, every gauge (same ticks as the live loop)."""
+    series = {name: feature_series(name, rows) for name in names}
+    times = series[names[0]][0]
+    ends = range(SAMPLE_RATE, len(rows) + 1, REPLAY_CHUNK)
+    gauges = {g: np.array([artifact_feature(rows[e - SAMPLE_RATE : e], spec) for e in ends]) for g, spec in GAUGE_CLEANING.items()}
+    return times, {name: series[name][1] for name in names}, gauges
 
 
 def print_table(title: str, names: tuple[str, ...], rows: dict[str, dict[str, int]]) -> None:
@@ -84,6 +85,7 @@ def main() -> None:
     parser.add_argument("--only", help="Comma-separated inputs to check (default: all)")
     args = parser.parse_args()
     names = tuple(args.only.split(",")) if args.only else PRIORITY
+    params = calibrated_params()
 
     alone: dict[str, dict[str, int]] = {}
     together: dict[str, dict[str, int]] = {}
@@ -93,11 +95,9 @@ def main() -> None:
             continue
         settle = REFERENCE_SETTLE_S if label in ("rest", "ojos_cerrados_base") else SETTLE_S
         rows = load_csv(path)[int(settle * SAMPLE_RATE) :]
-        series = {name: feature_series(name, rows) for name in names}
-        motion = series.get("puno") or feature_series("puno", rows)
-        emg = series.get("jaw") or feature_series("jaw", rows)
-        alone[label] = {name: len(detections(name, *series[name])) for name in names}
-        together[label] = arbiter_counts(series, names, motion, emg)
+        seg = segment(rows, names)
+        alone[label] = {name: len(detections(name, seg[0], seg[1][name], params[name].threshold)) for name in names}
+        together[label] = replay(seg, names, params)
 
     print_table("1. Each detector alone", names, alone)
     print_table("2. Through the arbiter (fly.py)", names, together)

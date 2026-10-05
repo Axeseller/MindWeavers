@@ -25,7 +25,8 @@ import _paths  # noqa: F401
 from _live import CsvReplayClient
 from camera_actions import take_photo, toggle_camera
 from eeg.arbiter import PRIORITY, InputArbiter
-from eeg.preprocess import ARTIFACT_CLEANING, SAMPLE_RATE, artifact_feature
+from eeg.calibration import DEFAULT_PATH as CALIBRATION, calibrated_params, load as load_calibration
+from eeg.preprocess import ARTIFACT_CLEANING, GAUGE_CLEANING, SAMPLE_RATE, artifact_feature
 from lsl.client import DEFAULT_STREAM_NAME, LslClient
 from tello.controller import TelloController
 from tello.skills import SkillRunner
@@ -47,11 +48,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--camera-on", action="store_true", help="Start with the camera already on")
     parser.add_argument("--quiet", action="store_true", help="Only print inputs, not the features every 0.25 s")
     parser.add_argument("--why", action="store_true", help="Also print the firings the arbiter dropped, and why")
+    parser.add_argument("--no-calibration", action="store_true", help="Ignore data/calibration/thresholds.json")
     return parser.parse_args()
 
 
 def build_arbiter(args: argparse.Namespace) -> InputArbiter:
-    arbiter = InputArbiter(tuple(name.strip() for name in args.inputs.split(",") if name.strip()))
+    names = tuple(name.strip() for name in args.inputs.split(",") if name.strip())
+    if args.no_calibration or not load_calibration():
+        print("[fly] thresholds: tested defaults (run calibrate.py to fit them to you)")
+        arbiter = InputArbiter(names)
+    else:
+        print(f"[fly] thresholds: calibrated, from {CALIBRATION}")
+        arbiter = InputArbiter(names, params=calibrated_params())
     for item in args.threshold:
         name, _, value = item.partition("=")
         arbiter.with_threshold(name, float(value))
@@ -95,7 +103,6 @@ def main() -> None:
         raise SystemExit(1)
 
     cleaning = {name: ARTIFACT_CLEANING[name] for name in arbiter.inputs}
-    gauges = {"motion": ARTIFACT_CLEANING["puno"], "emg": ARTIFACT_CLEANING["jaw"]}  # the arbiter's vetoes
     clock = client.now if replay else time.monotonic
     print("\nJaw: takeoff/land. Eyes closed: camera. Blink: photo. Arm: forward. Fist: back. Neck: right. Frown: left.")
     print("Ctrl+C lands and exits.\n")
@@ -117,7 +124,8 @@ def main() -> None:
 
             values = {name: artifact_feature(window, spec) for name, spec in cleaning.items()}
             now = clock()
-            confirmed = arbiter.update(values, now, **{k: artifact_feature(window, c) for k, c in gauges.items()})
+            gauges = {name: artifact_feature(window, spec) for name, spec in GAUGE_CLEANING.items()}
+            confirmed = arbiter.update(values, now, gauges)
             stamp = f"t={now:5.1f}s  " if replay else ""
 
             if args.why:

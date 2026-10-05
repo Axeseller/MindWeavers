@@ -91,7 +91,8 @@ class ArtifactCleaning:
     band:     bandpass in Hz (EEG only). None skips it.
     car:      common average reference, removes what all 8 electrodes share (EEG only).
     recent_s: measure only the newest part of the window, so onsets are seen early.
-    stat:     rms | peak (largest positive) | mean (signed) | p2p (max - min).
+    stat:     rms | peak (largest positive) | mean (signed) | p2p (max - min) | absmean (|mean| per channel, max).
+    ratio_to: EEG only. Divide the result by the RMS of these channels (a spatial pattern instead of a level).
     """
 
     source: str = "eeg"
@@ -102,6 +103,7 @@ class ArtifactCleaning:
     notch: bool = True
     recent_s: float = 1.0
     stat: str = "rms"
+    ratio_to: tuple[int, ...] | None = None
 
 
 ARTIFACT_CLEANING: dict[str, ArtifactCleaning] = {
@@ -121,6 +123,19 @@ ARTIFACT_CLEANING: dict[str, ArtifactCleaning] = {
     "angry": ArtifactCleaning(band=JAW_BAND, recent_s=0.5),
 }
 
+# Gauges: extra measurements the arbiter (eeg.arbiter) watches during an activation to tell look-alikes apart.
+GAUGE_CLEANING: dict[str, ArtifactCleaning] = {
+    # How much the head moved (any axis). Big for neck and arm moves, small for a fist or a face.
+    "motion": ArtifactCleaning(source="gyro", channels=(GYRO_X, GYRO_Y, GYRO_Z), recent_s=0.3),
+    # Head pitch and yaw speed. An arm raise tips the head (pitch); a neck turn is almost pure yaw.
+    "pitch": ArtifactCleaning(source="gyro", channels=(GYRO_X,), recent_s=0.2, stat="absmean"),
+    "yaw": ArtifactCleaning(source="gyro", channels=(GYRO_Z,), recent_s=0.2, stat="absmean"),
+    # Jaw-band EMG level, as in the jaw input.
+    "jaw_emg": ArtifactCleaning(band=JAW_BAND),
+    # Frontal / occipital EMG. A frown is ~0.6; neck turns, smiles and jaw clenches are 0.9-1.5.
+    "frontal_ratio": ArtifactCleaning(channels=(FZ,), band=JAW_BAND, recent_s=0.5, ratio_to=(PO7, OZ, PO8)),
+}
+
 
 def artifact_feature(window: np.ndarray, cleaning: ArtifactCleaning, fs: int = SAMPLE_RATE) -> float:
     """Clean the latest window the way `cleaning` says and reduce it to one number."""
@@ -138,6 +153,10 @@ def artifact_feature(window: np.ndarray, cleaning: ArtifactCleaning, fs: int = S
         if cleaning.band is not None:
             eeg = _bandpass(eeg, cleaning.band[0], cleaning.band[1], fs, cleaning.filter_order)
         data = eeg[:, list(cleaning.channels)]
+        if cleaning.ratio_to is not None:
+            n = max(1, int(cleaning.recent_s * fs))
+            base = _reduce(eeg[-n:, list(cleaning.ratio_to)], "rms")
+            return _reduce(data[-n:], cleaning.stat) / base if base > 0 else 0.0
     recent = data[-max(1, int(cleaning.recent_s * fs)) :]
     return _reduce(recent, cleaning.stat)
 
@@ -151,4 +170,6 @@ def _reduce(data: np.ndarray, stat: str) -> float:
         return float(np.mean(data))
     if stat == "p2p":
         return float(np.ptp(data))
+    if stat == "absmean":
+        return float(np.max(np.abs(np.mean(data, axis=0))))
     raise ValueError(f"Unknown stat '{stat}'")

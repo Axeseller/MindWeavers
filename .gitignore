@@ -17,3 +17,6 @@ data/recordings/*
 *.jpg
 *.jpeg
 *.mp4
+
+data/calibration/*
+!data/calibration/.gitkeep

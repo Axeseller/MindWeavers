@@ -174,7 +174,8 @@ class ArtifactDetector:
 
 # ---------------------------------------------------------------------------
 # One detector per recorded artifact. The feature comes from eeg.preprocess.ARTIFACT_CLEANING[name];
-# these are the decision parameters, calibrated on the 2026-10-04 recordings (scripts/artifacts/check_all.py).
+# these are the decision parameters, tuned on the 2026-10-04 recordings through the arbiter
+# (scripts/artifacts/calibrate.py --recordings). A per-session calibration overrides the thresholds.
 # ---------------------------------------------------------------------------
 INF = float("inf")
 
@@ -206,10 +207,10 @@ class ArtifactParams:
 ARTIFACT_PARAMS: dict[str, ArtifactParams] = {
     "jaw": ArtifactParams(threshold=JAW_TAKEOFF_THRESHOLD, min_s=0.5, max_s=2.0, refractory_s=0.8),
     "blink": ArtifactParams(threshold=30.0, max_s=0.8, refractory_s=0.8),
-    "cerrar_ojos": ArtifactParams(threshold=3.0, min_s=1.5, hold=True, refractory_s=1.0),
-    "cuello": ArtifactParams(threshold=17.0, min_s=0.1, direction=-1, refractory_s=1.5),
-    "brazos": ArtifactParams(threshold=20.0, min_s=0.1, direction=-1, refractory_s=1.5),
-    "puno": ArtifactParams(threshold=2.0, min_s=0.1, ceiling=8.0, refractory_s=1.5),
+    "cerrar_ojos": ArtifactParams(threshold=3.3, min_s=1.5, hold=True, refractory_s=1.0),
+    "cuello": ArtifactParams(threshold=14.0, min_s=0.1, direction=-1, refractory_s=1.5),
+    "brazos": ArtifactParams(threshold=10.0, min_s=0.1, direction=-1, refractory_s=1.5),
+    "puno": ArtifactParams(threshold=1.8, min_s=0.1, ceiling=8.0, refractory_s=1.5),
     "angry": ArtifactParams(threshold=6.0, min_s=0.2, ceiling=25.0, refractory_s=1.5),
 }
 
