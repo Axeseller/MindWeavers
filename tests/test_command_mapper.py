@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import sys
 import unittest
 from pathlib import Path
@@ -7,9 +8,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import app  # noqa: E402
-from mapping.commands import Action, CommandMapper, Event  # noqa: E402
+from eeg.detectors import jaw_takeoff_config  # noqa: E402
+from mapping.commands import ACTION_SKILLS, KEY_NONE, KEY_SPACE, Action, CommandMapper, Event, key_to_action  # noqa: E402
 from tello.controller import TelloController  # noqa: E402
-from tello.skills import skill_rc  # noqa: E402
+from tello.skills import SKILLS, SkillRunner, skill_rc  # noqa: E402
 
 
 class CommandMapperTest(unittest.TestCase):
@@ -24,29 +26,78 @@ class CommandMapperTest(unittest.TestCase):
         self.assertIsNone(mapper.map(Event.JAW_SHORT, True, 0.5))
         self.assertEqual(mapper.map(Event.JAW_SHORT, True, 1.0), Action.LAND)
 
-    def test_other_events_unchanged_and_ignore_cooldown(self) -> None:
+    def test_long_and_emergency_clench_land_and_ignore_cooldown(self) -> None:
         mapper = CommandMapper(cooldown_s=1.0)
         mapper.map(Event.JAW_SHORT, False, 0.0)
         self.assertEqual(mapper.map(Event.JAW_LONG, True, 0.1), Action.LAND)
-        self.assertEqual(mapper.map(Event.JAW_EMERGENCY, True, 0.1), Action.EMERGENCY)
+        self.assertEqual(mapper.map(Event.JAW_EMERGENCY, True, 0.1), Action.LAND)
         self.assertEqual(mapper.map(Event.DOUBLE_BLINK, True, 0.1), Action.PHOTO)
+
+
+class KeyboardTriggerTest(unittest.TestCase):
+    def test_layout(self) -> None:
+        expected = {
+            "q": Action.TAKEOFF,
+            "e": Action.LAND,
+            "w": Action.FORWARD,
+            "s": Action.BACK,
+            "a": Action.LEFT,
+            "d": Action.RIGHT,
+            "y": Action.UP,
+            "u": Action.DOWN,
+            "r": Action.YAW_CCW,
+            "t": Action.YAW_CW,
+        }
+        for char, action in expected.items():
+            with self.subTest(key=char):
+                self.assertEqual(key_to_action(ord(char), True), action)
+                self.assertEqual(key_to_action(ord(char.upper()), True), action)
+
+    def test_space_switches_on_flight_state(self) -> None:
+        self.assertEqual(key_to_action(KEY_SPACE, False), Action.TAKEOFF)
+        self.assertEqual(key_to_action(KEY_SPACE, True), Action.LAND)
+
+    def test_unbound_keys(self) -> None:
+        self.assertIsNone(key_to_action(KEY_NONE, True))
+        self.assertIsNone(key_to_action(ord("x"), True))
+        self.assertIsNone(key_to_action(-1, True))
+
+
+class ActionSkillsTest(unittest.TestCase):
+    def test_every_flight_action_has_a_skill(self) -> None:
+        self.assertEqual(set(ACTION_SKILLS), set(Action) - {Action.PHOTO})
+        for name in ACTION_SKILLS.values():
+            self.assertIn(name, SKILLS)
 
 
 class ApplyActionTest(unittest.TestCase):
     def test_every_movement_action_starts_its_skill(self) -> None:
-        for action, skill in app.ACTION_SKILLS.items():
+        for action, skill in ACTION_SKILLS.items():
+            if skill in ("takeoff", "land"):
+                continue
             with self.subTest(action=action):
                 controller = TelloController(dry_run=True)
                 controller.takeoff()
-                app.apply_action(controller, action)
+                app.apply_action(SkillRunner(controller), action)
                 self.assertEqual(controller.burst_rc, skill_rc(skill))
 
     def test_takeoff_and_land_actions(self) -> None:
         controller = TelloController(dry_run=True)
-        app.apply_action(controller, Action.TAKEOFF)
+        runner = SkillRunner(controller, dry_run_process_s=0.0)
+        app.apply_action(runner, Action.TAKEOFF)
+        runner.wait_idle(2)
         self.assertTrue(controller.is_flying)
-        app.apply_action(controller, Action.LAND)
+        app.apply_action(runner, Action.LAND)
+        runner.wait_idle(2)
         self.assertFalse(controller.is_flying)
+
+    def test_app_uses_calibrated_jaw_timing(self) -> None:
+        config = app.detector_config(40.0)
+        calibrated = jaw_takeoff_config(40.0)
+        self.assertEqual(config.jaw_short_min, calibrated.jaw_short_min)
+        self.assertEqual(config.jaw_short_max, calibrated.jaw_short_max)
+        self.assertEqual(config.jaw_long_min, calibrated.jaw_long_min)
+        self.assertTrue(math.isfinite(config.blink_peak_threshold))
 
 
 if __name__ == "__main__":
