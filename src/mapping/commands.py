@@ -8,6 +8,9 @@ class Event(str, Enum):
     JAW_LONG = "JAW_LONG"
     JAW_EMERGENCY = "JAW_EMERGENCY"
     DOUBLE_BLINK = "DOUBLE_BLINK"
+    BLINK = "BLINK"
+    EYES_CLOSED = "EYES_CLOSED"
+    EYES_OPENED = "EYES_OPENED"
 
 
 class Action(str, Enum):

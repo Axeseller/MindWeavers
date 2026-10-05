@@ -10,6 +10,7 @@ MIN_BATTERY_PERCENT = 20
 RC_SPEED = 50
 FORWARD_BURST_SECONDS = 0.6
 VIDEO_SIZE = (640, 480)
+VIDEO_FPS = 20
 WINDOW_NAME = "Mind Weavers - Tello"
 
 
@@ -57,12 +58,26 @@ class TelloController:
         self.is_flying = False
         self._tello: object | None = None
         self._frame_read: object | None = None
+        self._camera_on = False
+        self._recording = False
+        self._video_writer: cv2.VideoWriter | None = None
+        self._video_path: Path | None = None
         self._burst_until = 0.0
         self._burst_rc: tuple[int, int, int, int] = (0, 0, 0, 0)
+
+    @property
+    def camera_on(self) -> bool:
+        return self._frame_read is not None or (self.dry_run and self._camera_on)
+
+    @property
+    def is_recording(self) -> bool:
+        return self._recording
 
     def connect(self, with_video: bool = True) -> bool:
         if self.dry_run:
             print("[dry-run] Tello connect skipped")
+            if with_video:
+                self.start_camera()
             return True
         return self._connect_hardware(with_video)
 
@@ -137,6 +152,23 @@ class TelloController:
         if not self.dry_run and self._tello is not None:
             self._tello.send_rc_control(lr, fb, ud, yv)
 
+    def start_camera(self) -> bool:
+        if self.camera_on:
+            return True
+        if self.dry_run:
+            print("[dry-run] Camera stream on")
+            self._camera_on = True
+            return True
+        if self._tello is None:
+            print("--> Camera skipped (not connected)")
+            return False
+        print("Starting video stream...")
+        self._tello.streamon()
+        time.sleep(2)
+        self._frame_read = self._tello.get_frame_read()
+        self._camera_on = True
+        return True
+
     def take_photo(self, output_dir: Path) -> Path | None:
         output_dir.mkdir(parents=True, exist_ok=True)
         path = output_dir / f"photo_{int(time.time())}.jpg"
@@ -149,6 +181,53 @@ class TelloController:
             return None
         cv2.imwrite(str(path), frame)
         print(f"--> Photo saved {path}")
+        return path
+
+    def start_recording(self, output_dir: Path) -> Path | None:
+        if self._recording:
+            return self._video_path
+        output_dir.mkdir(parents=True, exist_ok=True)
+        path = output_dir / f"video_{int(time.time())}.mp4"
+        if self.dry_run:
+            print(f"[dry-run] Video start -> {path}")
+            self._recording = True
+            self._video_path = path
+            return path
+        return self._open_video_writer(path)
+
+    def record_frame(self) -> None:
+        if not self._recording or self.dry_run or self._video_writer is None:
+            return
+        frame = self._raw_frame()
+        if frame is not None:
+            self._video_writer.write(frame)
+
+    def stop_recording(self) -> Path | None:
+        if not self._recording:
+            return None
+        path = self._video_path
+        if self._video_writer is not None:
+            self._video_writer.release()
+        self._video_writer = None
+        self._recording = False
+        self._video_path = None
+        print(f"--> Video saved {path}")
+        return path
+
+    def _open_video_writer(self, path: Path) -> Path | None:
+        frame = self._raw_frame()
+        if frame is None:
+            print("--> Video skipped (no frame)")
+            return None
+        height, width = frame.shape[:2]
+        writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"mp4v"), VIDEO_FPS, (width, height))
+        if not writer.isOpened():
+            print("--> Video skipped (writer failed)")
+            return None
+        self._video_writer = writer
+        self._recording = True
+        self._video_path = path
+        print(f"--> Video start {path}")
         return path
 
     def show_video(self) -> int:
@@ -177,8 +256,10 @@ class TelloController:
 
     def shutdown(self) -> None:
         print("\nShutting down Tello...")
+        self.stop_recording()
         if self.dry_run:
             self.is_flying = False
+            self._camera_on = False
             cv2.destroyAllWindows()
             return
         self._shutdown_hardware()
@@ -194,12 +275,9 @@ class TelloController:
         if battery < MIN_BATTERY_PERCENT:
             print("Battery too low for a safe flight. Charge and retry.")
             return False
-        if with_video:
-            print("Starting video stream...")
-            tello.streamon()
-            time.sleep(2)
-            self._frame_read = tello.get_frame_read()
         self._tello = tello
+        if with_video:
+            return self.start_camera()
         return True
 
     def _raw_frame(self):
@@ -230,4 +308,6 @@ class TelloController:
             pass
         cv2.destroyAllWindows()
         self.is_flying = False
+        self._camera_on = False
+        self._frame_read = None
         self._tello = None
