@@ -21,9 +21,9 @@ Use artifacts the Unicorn already records loudly: jaw clench and double blink. M
 
 1. Headset on, stream visible.
 2. Short clench → takeoff.
-3. Short clench → forward burst.
+3. Hold a movement key → the drone moves while the key is held, hovers on release.
 4. Double blink → photo appears on disk / slide.
-5. Long clench → land.
+5. Short clench → land.
 
 If EEG misfires, finish the same sequence from the keyboard.
 

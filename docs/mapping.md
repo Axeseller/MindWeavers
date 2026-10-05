@@ -4,17 +4,19 @@ Do not change this table during a flight session. Tune detector thresholds, not 
 
 ## Events
 
+Timings below are from `jaw_takeoff_config()`, the calibrated detector used by `manual_mode.py`, `app.py` and `jaw_takeoff.py`. They are measured on the 1 s jaw-RMS feature, so they run longer than the clench itself.
+
 | Event | How it is detected | Tello action |
 |---|---|---|
-| `JAW_SHORT` | Jaw EMG stays above threshold for 0.25–1.0 s, then drops | Takeoff if grounded; land if flying |
-| `JAW_LONG` | Jaw EMG stays above threshold for more than 1.2 s | Land |
-| `JAW_EMERGENCY` | Jaw EMG stays above threshold for more than 2.5 s | Emergency land |
-| `DOUBLE_BLINK` | Two frontal blink peaks within 500 ms | Save a still from the Tello camera |
+| `JAW_SHORT` | Jaw RMS stays above threshold for 0.5–2.0 s, then drops (a ~0.5–1 s clench) | Takeoff if grounded; land if flying (switch) |
+| `JAW_LONG` | Jaw RMS stays above threshold for 2.0 s or more, then drops | Land |
+| `JAW_EMERGENCY` | Jaw RMS stays above threshold for 10 s | Land (normal landing, motors are never cut) |
+| `DOUBLE_BLINK` | Two frontal blink peaks within 500 ms | Save a still from the Tello camera (`app.py` only) |
 | Single blink | One isolated frontal peak | Ignored — people blink constantly |
 
-Flight commands share a **1.0 s cooldown** so one clench cannot take off and immediately land.
+Flight commands share a **1.0 s cooldown** so one clench cannot take off and immediately land. Events fire on clench release.
 
-Movement actions (`FORWARD`, `BACK`, `LEFT`, `RIGHT`, `UP`, `DOWN`, `YAW_CW`, `YAW_CCW`) exist in `Action` and are dispatched to `src/tello/skills.py`, but no event is bound to them yet. To bind a gesture, add an `Event` and one branch in `CommandMapper.map()`.
+Takeoff and land are **process** skills: while one runs, every other input is ignored. Movement actions (`FORWARD`, `BACK`, `LEFT`, `RIGHT`, `UP`, `DOWN`, `YAW_CW`, `YAW_CCW`) are **continuous** skills routed by `ACTION_SKILLS` to `SkillRunner.request()`. No EEG event is bound to them yet. To bind a gesture, add an `Event` and one branch in `CommandMapper.map()`. See [skills_plan/phase_5_skill_runner.md](skills_plan/phase_5_skill_runner.md).
 
 ## Why these artifacts
 
@@ -27,7 +29,7 @@ Motor imagery is too noisy for a one-day demo. Jaw clench is loud EMG across man
 
 ## Thresholds
 
-Defaults live in `src/eeg/detectors.py` (`DetectorConfig`). After `scripts/record_baseline.py` sessions:
+Defaults live in `src/eeg/detectors.py` (`DetectorConfig`); the flight scripts use `jaw_takeoff_config(threshold)` and accept `--threshold`. After `scripts/record_baseline.py` sessions:
 
 1. Record ~20 jaw clenches and ~20 double blinks.
 2. Plot RMS and frontal amplitude.
@@ -38,4 +40,4 @@ Use hysteresis (release at 60% of the enter threshold) so the jaw state does not
 
 ## Keyboard override
 
-Keyboard commands skip the EEG mapper and go straight to the controller. They are the safety net if a detector misfires.
+Keyboard commands skip the EEG mapper (`key_to_action()`) and go through the same `SkillRunner` as EEG events. They are the safety net if a detector misfires. `Space` is the takeoff/land switch; holding a movement key keeps moving.
