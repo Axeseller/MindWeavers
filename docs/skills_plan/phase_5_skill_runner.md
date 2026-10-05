@@ -40,12 +40,10 @@ The keyboard lease is `HOLD_LEASE_S = 0.6`. It covers the ~0.5 s OS key-repeat d
 ## Entry points
 
 - `scripts/manual_mode.py` — Manual Mode. Dry-run by default.
-  - Clench switches takeoff/land using `jaw_takeoff_config()`, the same calibrated detector as `jaw_takeoff.py`. The keyboard drives the skills.
+  - Clench switches takeoff/land using `jaw_takeoff_config()`. The keyboard drives the skills.
   - Flags: `--live`, `--no-video`, `--no-eeg`, `--threshold`, `--stream`.
   - Without a headset stream, dry-run continues keyboard-only; `--live` exits unless `--no-eeg` is given.
-- `scripts/artifacts/fly.py` — supported multi-artifact runner. It uses `InputArbiter` and per-session calibration; see `scripts/artifacts/README.md`.
-- `src/app.py` — main entry point; runs `scripts/artifacts/vuelo.py` (jaw takeoff/land, head forward, blink back) and translates the old app.py flags.
-- `scripts/jaw_takeoff.py` — unchanged one-shot reference test.
+- `src/app.py` — main entry point; runs `scripts/artifacts/vuelo6.py` (six inputs through `InputArbiter`, per-session calibration and `Tello/Mover.py`; `--lados` / `--simple` for fewer). See `scripts/artifacts/README.md`.
 
 ## Safety
 

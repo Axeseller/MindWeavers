@@ -1,8 +1,8 @@
 """Jaw clench -> takeoff. The one artifact already mapped to the drone.
 
-Recording: jaw. Signal: EMG 15-40 Hz on all 8 channels, clench held 0.5-2 s (same as scripts/jaw_takeoff.py).
+Recording: jaw. Signal: EMG 15-40 Hz on all 8 channels, clench held 0.5-2 s (the original jaw takeoff detector).
 Cleaning: eeg.preprocess.ARTIFACT_CLEANING["jaw"]. Decision: eeg.detectors.ARTIFACT_PARAMS["jaw"].
-On detection: take off, hover, land, exit.
+On detection: take off, hover, land, exit. In the flight (src/app.py): Q takeoff / E land.
 
     python scripts/artifacts/jaw.py                  # headset LSL, Tello dry-run
     python scripts/artifacts/jaw.py --live           # headset LSL, real Tello

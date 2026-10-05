@@ -1,4 +1,4 @@
-"""Shared loop for scripts/artifacts/<name>.py. Same steps as scripts/jaw_takeoff.py:
+"""Shared loop for scripts/artifacts/<name>.py:
 connect the Tello, subscribe to the Unicorn LSL stream, read until the artifact is detected, always shut down.
 
 Cleaning lives in eeg.preprocess.ARTIFACT_CLEANING[name], decision parameters in eeg.detectors.ARTIFACT_PARAMS[name].

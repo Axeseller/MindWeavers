@@ -1,6 +1,6 @@
 # Phase 3 — Action policy and EEG readiness
 
-> Superseded for runtime artifact control by `scripts/artifacts/fly.py`, which
+> Superseded for runtime artifact control by `src/app.py` (`scripts/artifacts/vuelo6.py`), which
 > uses `eeg.arbiter.InputArbiter` and per-session calibration. This document
 > remains as the design record for the legacy `CommandMapper` path.
 
@@ -29,7 +29,6 @@ Every basic skill can be bound to an EEG event by editing the mapper only, and s
 
 3. **`docs/mapping.md`** updated to the new `JAW_SHORT` meaning.
 
-`scripts/jaw_takeoff.py` stays a one-shot mission and is not turned into the general skill API.
 
 ## Safety
 

@@ -1,4 +1,4 @@
-"""Per-session thresholds: for each input, the threshold that makes the whole arbiter (what fly.py runs) read
+"""Per-session thresholds: for each input, the threshold that makes the whole arbiter (what src/app.py runs) read
 this person's session best, saved so the scripts load it.
 
 The session is a set of segments, one per prompted input plus "rest". A set of thresholds is scored by replaying

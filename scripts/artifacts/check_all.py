@@ -4,7 +4,7 @@
 
 Two tables:
 1. Each detector alone (what the single-input scripts do). Off-diagonal numbers are crossovers.
-2. The arbiter (what fly.py does): only one input per gesture, so crossovers should be gone.
+2. The arbiter (what src/app.py runs): only one input per gesture, so crossovers should be gone.
 Uses the saved calibration (data/calibration/thresholds.json) when there is one.
 `*` marks the recording(s) of that input; `rest` and `ojos_cerrados_base` should be all zero.
 """
@@ -101,7 +101,7 @@ def main() -> None:
         together[label] = replay(seg, names, params)
 
     print_table("1. Each detector alone", names, alone)
-    print_table("2. Through the arbiter (fly.py)", names, together)
+    print_table("2. Through the arbiter (src/app.py)", names, together)
     print("\n* = that input's own recording")
 
 

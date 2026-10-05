@@ -22,8 +22,6 @@ class DetectorConfig:
 
 
 JAW_TAKEOFF_THRESHOLD = 40.0
-BLINK_PHOTO_THRESHOLD = 55.0
-EYES_CLOSED_THRESHOLD = 6.0
 
 
 def jaw_takeoff_config(threshold: float = JAW_TAKEOFF_THRESHOLD) -> DetectorConfig:
@@ -38,21 +36,6 @@ def jaw_takeoff_config(threshold: float = JAW_TAKEOFF_THRESHOLD) -> DetectorConf
         eyes_closed_threshold=float("inf"),
     )
 
-
-def camera_blink_config(
-    blink_threshold: float = BLINK_PHOTO_THRESHOLD,
-    eyes_closed_threshold: float = EYES_CLOSED_THRESHOLD,
-) -> DetectorConfig:
-    """Calibrated from blink3secinterval / cerrarojos3sec / baselineojoscerrados."""
-    return DetectorConfig(
-        jaw_rms_threshold=float("inf"),
-        blink_peak_threshold=blink_threshold,
-        emit_single_blink=True,
-        blink_pair_window=0.0,
-        eyes_closed_threshold=eyes_closed_threshold,
-        eyes_closed_min_s=2.0,
-        refractory_s=0.8,
-    )
 
 
 class ArtifactDetector:

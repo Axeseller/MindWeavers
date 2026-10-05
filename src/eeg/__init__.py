@@ -1,6 +1,6 @@
 from eeg.arbiter import InputArbiter
-from eeg.detectors import ArtifactDetector, DetectorConfig, camera_blink_config
-from eeg.preprocess import SAMPLE_RATE, extract_eye_features, extract_features, preprocess_window
+from eeg.detectors import ArtifactDetector, DetectorConfig
+from eeg.preprocess import SAMPLE_RATE, extract_features, preprocess_window
 from eeg.trigger import EegTrigger
 
 __all__ = [
@@ -9,8 +9,6 @@ __all__ = [
     "DetectorConfig",
     "EegTrigger",
     "InputArbiter",
-    "camera_blink_config",
-    "extract_eye_features",
     "extract_features",
     "preprocess_window",
 ]

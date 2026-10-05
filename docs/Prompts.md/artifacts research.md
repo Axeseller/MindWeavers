@@ -1,8 +1,8 @@
 # `jaw_takeoff.py` execution and skill-building research
 
-> Historical research note. Its `src/app.py` integration advice is retired;
-> use `scripts/artifacts/fly.py`, `eeg.arbiter`, and
-> `scripts/artifacts/README.md` for the current multi-artifact pipeline.
+> Historical research note: `jaw_takeoff.py`, `analyze_baselines.py` and `fly.py` have since been removed.
+> The current pipeline is `src/app.py` (runs `scripts/artifacts/vuelo6.py`), `eeg.arbiter` and
+> `scripts/artifacts/README.md`.
 
 ## Purpose and scope
 

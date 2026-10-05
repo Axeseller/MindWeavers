@@ -7,7 +7,7 @@
 
 Each gesture becomes the key Mover.py would get; Mover.get_keyboard_input() turns it into the command, and it is
 executed the way Mover.main() does it (tello.takeoff / tello.land / tello.send_rc_control). The gestures come from
-the same detectors, arbiter and calibration as fly.py (data/calibration/thresholds.json when it exists).
+the shared detectors, arbiter and calibration (data/calibration/thresholds.json when it exists).
 
     python scripts/artifacts/vuelo.py               # REAL Tello: connect to its Wi-Fi first
     python scripts/artifacts/vuelo.py --dry-run     # no drone, prints what it would send

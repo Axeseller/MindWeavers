@@ -1,11 +1,11 @@
-"""Angry face (frown).
+"""Angry face (frown): check this detector on its own.
 
-Recording: enojadocada4sec. Signal: facial EMG 15-40 Hz; a jaw clench is 4x stronger and is discarded.
+Recording: enojadocada4sec. Signal: facial EMG 15-40 Hz with the frown's frontal/occipital pattern.
 Cleaning: eeg.preprocess.ARTIFACT_CLEANING["angry"]. Decision: eeg.detectors.ARTIFACT_PARAMS["angry"].
-Alone, this script only prints each detection. The drone action (LEFT pulse) runs from fly.py,
-where the arbiter keeps the inputs from firing on each other.
+In the flight (src/app.py): A: left 1 s. This script only prints each detection.
 
-    python scripts/artifacts/angry.py                  # headset LSL, Tello dry-run
+    python scripts/artifacts/angry.py                  # headset LSL
+    python scripts/artifacts/angry.py --threshold 20   # try another threshold
     python scripts/artifacts/angry.py --replay <csv>   # recorded CSV, no hardware
 """
 

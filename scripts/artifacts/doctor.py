@@ -74,7 +74,7 @@ def main() -> None:
     results = [check_python(), check_libraries(), check_stream()]
     if args.tello:
         results.append(check_tello())
-    print("\nAll good. Run: python scripts/artifacts/fly.py" if all(results) else "\nFix the FAIL lines above and run again.")
+    print("\nAll good. Run: python src/app.py --dry-run" if all(results) else "\nFix the FAIL lines above and run again.")
     raise SystemExit(0 if all(results) else 1)
 
 

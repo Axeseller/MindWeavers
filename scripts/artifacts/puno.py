@@ -1,11 +1,11 @@
-"""Close a fist (either).
+"""Close a fist (either): check this detector on its own.
 
 Recording: puñoizquierdo3sec / puñoderecho3sec. Signal: small gyroscope movement; anything big is a neck or arm move and is discarded.
 Cleaning: eeg.preprocess.ARTIFACT_CLEANING["puno"]. Decision: eeg.detectors.ARTIFACT_PARAMS["puno"].
-Alone, this script only prints each detection. The drone action (BACK pulse) runs from fly.py,
-where the arbiter keeps the inputs from firing on each other.
+In the flight (src/app.py): not used (the weakest input). This script only prints each detection.
 
-    python scripts/artifacts/puno.py                  # headset LSL, Tello dry-run
+    python scripts/artifacts/puno.py                  # headset LSL
+    python scripts/artifacts/puno.py --threshold 20   # try another threshold
     python scripts/artifacts/puno.py --replay <csv>   # recorded CSV, no hardware
 """
 

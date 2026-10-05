@@ -1,8 +1,8 @@
-"""Guided calibration, ~5 minutes. Do it once per person and session, before fly.py.
+"""Guided calibration, ~5 minutes. Do it once per person and session, before src/app.py.
 
 It asks for 20 s of rest and then each input a few times, saving the raw stream per step. Then, for each input,
-it picks the threshold that best separates your gesture from rest and from your other gestures, shows how fly.py
-would read the whole session, and saves the thresholds to data/calibration/thresholds.json. fly.py and the
+it picks the threshold that best separates your gesture from rest and from your other gestures, shows how the flight
+would read the whole session, and saves the thresholds to data/calibration/thresholds.json. src/app.py and the
 single-input scripts load that file automatically.
 
     python scripts/artifacts/calibrate.py                         # record with the headset, then calibrate
@@ -156,7 +156,7 @@ def analyze(rows: dict, own: dict, reps: dict, inputs: tuple[str, ...], out: Pat
     print(f"\nSaved {path}")
 
     params = calibration.calibrated_params(path)
-    print("\nHow fly.py reads the session now (rows: what you did; columns: what it emitted):")
+    print("\nHow the flight reads the session now (rows: what you did; columns: what it emitted):")
     print(f"  {'did':20s}" + "".join(f"{n[:9]:>10s}" for n in inputs))
     for label, seg in segments.items():
         counts = calibration.replay(seg, inputs, params)

@@ -1,16 +1,16 @@
 # Legacy event-to-command mapping
 
 > Retired as the runtime integration path. The supported artifact mapping,
-> calibration, and conflict-resolution policy live in
-> [`scripts/artifacts/fly.py`](../scripts/artifacts/fly.py) and
-> [`scripts/artifacts/README.md`](../scripts/artifacts/README.md).
-> `src/app.py` is now a compatibility wrapper only.
+> calibration, and conflict-resolution policy live in [`src/app.py`](../src/app.py)
+> (runs `scripts/artifacts/vuelo6.py`) and
+> [`scripts/artifacts/README.md`](../scripts/artifacts/README.md). This table is now
+> used only by `scripts/manual_mode.py`.
 
 Do not change this table during a flight session. Tune detector thresholds, not the meaning of each event.
 
 ## Events
 
-Timings below are from `jaw_takeoff_config()`, the calibrated detector used by `manual_mode.py`, `app.py` and `jaw_takeoff.py`. They are measured on the 1 s jaw-RMS feature, so they run longer than the clench itself.
+Timings below are from `jaw_takeoff_config()`, the calibrated detector used by `manual_mode.py`. They are measured on the 1 s jaw-RMS feature, so they run longer than the clench itself.
 
 | Event | How it is detected | Tello action |
 |---|---|---|

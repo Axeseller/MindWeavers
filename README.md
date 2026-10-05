@@ -8,15 +8,14 @@ a smile goes right, a frown goes left and closing the eyes turns 90° right.
 
 ## Artifact map
 
-| Input | Command |
+| Input | Command (`src/app.py`) |
 |---|---|
 | Jaw clench | Take off when grounded; land when flying |
-| Eyes closed | Toggle camera |
-| Blink | Take a photo while the camera is on |
-| Smile | Forward pulse |
-| Fist | Back pulse |
-| Right neck turn | Right pulse |
-| Frown | Left pulse |
+| Head turn (either side) | Forward 1 s |
+| Blink | Back 1 s |
+| Smile | Right 1 s |
+| Frown | Left 1 s |
+| Eyes closed ~1.5 s | Turn 90° right |
 
 See [the artifact runner guide](scripts/artifacts/README.md) for calibration,
 recorded results, and the known limitations of each input.
@@ -100,7 +99,7 @@ path. Focus the Tello camera window.
 - `R` `T` yaw left / right
 - `ESC` exit (waits for a running takeoff/land, then lands)
 
-While takeoff or landing runs, every other input is ignored. `fly.py` currently
+While takeoff or landing runs, every other input is ignored. `src/app.py`
 uses Ctrl+C to land and exit; do not rely on it as a replacement for a manual
 flight safety procedure.
 

@@ -10,7 +10,7 @@ from lsl.client import DEFAULT_STREAM_NAME, LslClient
 class EegTrigger:
     """Non-blocking live EEG -> detector events, for loops that also drive video and keyboard.
 
-    Same signal path as scripts/jaw_takeoff.py: wait for a full 1 s window, then filter, extract features
+    Same signal path as the original jaw takeoff script: wait for a full 1 s window, then filter, extract features
     and update the detector only when new samples arrive.
     """
 

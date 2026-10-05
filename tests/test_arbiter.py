@@ -31,7 +31,7 @@ def play(arbiter: InputArbiter, frames: list[dict[str, float]]) -> list[str]:
     """Feed one frame per 40 ms tick (anything missing is at rest) and return the emitted inputs."""
     out = []
     for i, frame in enumerate(frames):
-        values = {k: frame.get(k, 0.0) for k in arbiter.inputs}  # like fly.py: only the enabled inputs
+        values = {k: frame.get(k, 0.0) for k in arbiter.inputs}  # like the flight: only the enabled inputs
         gauges = {**QUIET_GAUGES, **{k: v for k, v in frame.items() if k in QUIET_GAUGES}}
         emitted = arbiter.update(values, i * STEP, gauges)
         if emitted:

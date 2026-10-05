@@ -1,11 +1,11 @@
-"""Happy face (smile).
+"""Happy face (smile): check this detector on its own.
 
 Recording: happyfacecada4sec. Signal: facial EMG 30-100 Hz after removing what all electrodes share.
 Cleaning: eeg.preprocess.ARTIFACT_CLEANING["happy"]. Decision: eeg.detectors.ARTIFACT_PARAMS["happy"].
-Alone, this script only prints each detection. The drone action (FORWARD pulse) runs from fly.py,
-where the arbiter keeps the inputs from firing on each other.
+In the flight (src/app.py): D: right 1 s. This script only prints each detection.
 
-    python scripts/artifacts/happy.py                  # headset LSL, Tello dry-run
+    python scripts/artifacts/happy.py                  # headset LSL
+    python scripts/artifacts/happy.py --threshold 20   # try another threshold
     python scripts/artifacts/happy.py --replay <csv>   # recorded CSV, no hardware
 """
 
