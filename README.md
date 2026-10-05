@@ -8,13 +8,13 @@ One Windows laptop talks to both devices: Unicorn Recorder streams **raw** LSL, 
 
 | Artifact | Command |
 |---|---|
-| Short jaw clench (0.25–1.0 s) | Takeoff if grounded, else a short forward burst |
-| Long jaw clench (> 1.2 s) | Land |
-| Very long jaw clench (> 2.5 s) | Emergency land |
-| Double blink (within 500 ms) | Take a photo |
+| Short jaw clench (~0.5–1 s) | Switch: takeoff if grounded, land if flying |
+| Long jaw clench (~1.5 s or more) | Land |
+| Very long jaw clench (~10 s) | Land (motors are never cut) |
+| Double blink (within 500 ms) | Take a photo (`app.py`) |
 | Single blink | Ignored |
 
-Keyboard is always available as a safety override. See [docs/mapping.md](docs/mapping.md).
+Movement skills (forward, back, left, right, up, down, yaw) have no EEG gesture yet; the keyboard drives them. Keyboard is always available as a safety override. See [docs/mapping.md](docs/mapping.md) and [docs/skills_plan/phase_5_skill_runner.md](docs/skills_plan/phase_5_skill_runner.md).
 
 ## Setup (Windows flight laptop)
 
@@ -54,25 +54,41 @@ python scripts/record_baseline.py --label jaw --seconds 30
 python scripts/record_baseline.py --label blink --seconds 30
 ```
 
-Full pipeline:
+Manual flight (jaw clench = takeoff/land switch, keyboard = movement skills). Dry-run by default:
+
+```bash
+python scripts/manual_mode.py
+python scripts/manual_mode.py --no-eeg
+python scripts/manual_mode.py --live
+```
+
+Full pipeline (adds the double-blink photo):
 
 ```bash
 python src/app.py --dry-run
 python src/app.py
 ```
 
-`--dry-run` prints commands and never opens a Tello socket.
+`--dry-run` prints commands and never opens a Tello socket. Both accept `--threshold` (jaw RMS, default 40).
+
+Tests (no hardware):
+
+```bash
+python -m unittest discover -s tests
+```
 
 ## Keyboard override
 
 Focus the Tello camera window.
 
-- `Q` takeoff
-- `E` land
-- `W` `S` `A` `D` forward / back / left / right
+- `Space` takeoff/land switch
+- `Q` takeoff, `E` land
+- `W` `S` `A` `D` forward / back / left / right (hold to keep moving)
 - `Y` `U` up / down
 - `R` `T` yaw left / right
-- `ESC` emergency exit (hover + land)
+- `ESC` exit (waits for a running takeoff/land, then lands)
+
+While takeoff or landing runs, every other input is ignored.
 
 ## Team
 

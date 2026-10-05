@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 
 SRC = Path(__file__).resolve().parent
@@ -10,26 +11,16 @@ ROOT = SRC.parent
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from eeg.detectors import ArtifactDetector
-from eeg.preprocess import extract_features, preprocess_window
-from lsl.client import DEFAULT_STREAM_NAME, LslClient
-from mapping.commands import Action, CommandMapper
-from tello import skills
+from eeg.detectors import JAW_TAKEOFF_THRESHOLD, DetectorConfig, jaw_takeoff_config
+from eeg.trigger import EegTrigger
+from lsl.client import DEFAULT_STREAM_NAME
+from mapping.commands import ACTION_SKILLS, KEY_ESC, Action, CommandMapper, key_to_action
 from tello.controller import TelloController, print_keyboard_help
+from tello.skills import SkillRunner
 
 PHOTO_DIR = ROOT / "data" / "recordings"
 LOOP_SLEEP_S = 0.01
-
-ACTION_SKILLS = {
-    Action.FORWARD: "forward",
-    Action.BACK: "back",
-    Action.LEFT: "left",
-    Action.RIGHT: "right",
-    Action.UP: "up",
-    Action.DOWN: "down",
-    Action.YAW_CW: "yaw_clockwise",
-    Action.YAW_CCW: "yaw_counterclockwise",
-}
+SHUTDOWN_WAIT_S = 30.0
 
 
 def parse_args() -> argparse.Namespace:
@@ -38,31 +29,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--no-video", action="store_true", help="Skip Tello camera stream")
     parser.add_argument("--no-lsl", action="store_true", help="Keyboard only (no headset)")
     parser.add_argument("--stream", default=DEFAULT_STREAM_NAME, help="Unicorn raw LSL stream name")
+    parser.add_argument("--threshold", type=float, default=JAW_TAKEOFF_THRESHOLD, help="Jaw RMS enter threshold")
     return parser.parse_args()
 
 
-def apply_action(controller: TelloController, action: str) -> None:
-    if action == Action.TAKEOFF:
-        controller.takeoff()
-    elif action == Action.LAND:
-        controller.land()
-    elif action == Action.EMERGENCY:
-        controller.emergency_land()
+def detector_config(threshold: float) -> DetectorConfig:
+    """Calibrated jaw timing from jaw_takeoff_config, with the double-blink photo kept on."""
+    return replace(jaw_takeoff_config(threshold), blink_peak_threshold=DetectorConfig.blink_peak_threshold)
+
+
+def apply_action(runner: SkillRunner, action: str) -> None:
+    if action == Action.PHOTO:
+        runner.controller.take_photo(PHOTO_DIR)
     elif action in ACTION_SKILLS:
-        skills.start_skill(controller, ACTION_SKILLS[action])
-    elif action == Action.PHOTO:
-        controller.take_photo(PHOTO_DIR)
+        runner.request(ACTION_SKILLS[action])
 
 
-def process_eeg(client: LslClient, detector: ArtifactDetector, mapper: CommandMapper, flying: bool) -> list[str]:
-    client.pull_chunk(timeout=0.0)
-    window = preprocess_window(client.window())
-    jaw_rms, blink_amp = extract_features(window)
+def process_eeg(trigger: EegTrigger, mapper: CommandMapper, flying: bool) -> list[str]:
     now = time.monotonic()
-    events = detector.update(jaw_rms, blink_amp, now)
     actions: list[str] = []
-    for event in events:
-        print(f"EEG event: {event}  jaw_rms={jaw_rms:.1f}  blink={blink_amp:.1f}")
+    for event in trigger.poll(now):
+        print(f"EEG event: {event}  jaw_rms={trigger.jaw_rms:.1f}  blink={trigger.blink_amp:.1f}")
         action = mapper.map(event, flying, now)
         if action:
             actions.append(action)
@@ -71,14 +58,15 @@ def process_eeg(client: LslClient, detector: ArtifactDetector, mapper: CommandMa
 
 def run(args: argparse.Namespace) -> None:
     controller = TelloController(dry_run=args.dry_run)
-    client = LslClient()
-    detector = ArtifactDetector()
+    runner = SkillRunner(controller)
+    trigger = EegTrigger(detector_config(args.threshold))
     mapper = CommandMapper(cooldown_s=1.0)
     use_lsl = not args.no_lsl
 
     if not controller.connect(with_video=not args.no_video):
+        controller.shutdown()
         return
-    if use_lsl and not client.connect(stream_name=args.stream):
+    if use_lsl and not trigger.connect(args.stream):
         if not args.dry_run:
             controller.shutdown()
             return
@@ -90,19 +78,23 @@ def run(args: argparse.Namespace) -> None:
     try:
         while running:
             if use_lsl:
-                for action in process_eeg(client, detector, mapper, controller.is_flying):
-                    apply_action(controller, action)
+                for action in process_eeg(trigger, mapper, controller.is_flying):
+                    apply_action(runner, action)
             key = controller.show_video()
-            key_state = controller.handle_keyboard(key)
-            if key_state == "exit":
+            if key == KEY_ESC:
+                print("\n[!] Exit from keyboard.")
                 running = False
-            elif key_state != "override":
-                controller.apply_motion()
+            else:
+                action = key_to_action(key, controller.is_flying)
+                if action:
+                    apply_action(runner, action)
+            runner.tick()
             time.sleep(LOOP_SLEEP_S)
     except KeyboardInterrupt:
         print("\nInterrupted.")
     finally:
-        client.close()
+        trigger.close()
+        runner.wait_idle(SHUTDOWN_WAIT_S)
         controller.shutdown()
 
 

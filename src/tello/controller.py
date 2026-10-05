@@ -8,45 +8,20 @@ import numpy as np
 
 MIN_BATTERY_PERCENT = 20
 RC_SPEED = 50
-FORWARD_BURST_SECONDS = 0.6
 VIDEO_SIZE = (640, 480)
 VIDEO_FPS = 20
 WINDOW_NAME = "Mind Weavers - Tello"
 
 
-def get_keyboard_command(key: int) -> tuple[str, tuple[int, int, int, int]]:
-    """Map an OpenCV keycode to a command, same layout as DroneOps Mover.py."""
-    lr, fb, ud, yv = 0, 0, 0, 0
-    if key in (ord("q"), ord("Q")):
-        return "TAKEOFF", (0, 0, 0, 0)
-    if key in (ord("e"), ord("E")):
-        return "LAND", (0, 0, 0, 0)
-    if key in (ord("a"), ord("A")):
-        lr = -RC_SPEED
-    elif key in (ord("d"), ord("D")):
-        lr = RC_SPEED
-    elif key in (ord("w"), ord("W")):
-        fb = RC_SPEED
-    elif key in (ord("s"), ord("S")):
-        fb = -RC_SPEED
-    elif key in (ord("y"), ord("Y")):
-        ud = RC_SPEED
-    elif key in (ord("u"), ord("U")):
-        ud = -RC_SPEED
-    elif key in (ord("r"), ord("R")):
-        yv = -RC_SPEED
-    elif key in (ord("t"), ord("T")):
-        yv = RC_SPEED
-    return "FLIGHT", (lr, fb, ud, yv)
-
-
 def print_keyboard_help() -> None:
     print("\n" + "=" * 45)
-    print("  KEYBOARD OVERRIDE (focus the video window)")
+    print("  KEYBOARD (focus the video window)")
     print("=" * 45)
-    print(" [Q] takeoff   [E] land   [ESC] exit")
+    print(" [SPACE] takeoff/land switch   [ESC] exit")
+    print(" [Q] takeoff   [E] land")
     print(" [W/S] forward/back   [A/D] left/right")
     print(" [Y/U] up/down        [R/T] yaw")
+    print(" Hold a movement key to keep moving.")
     print("=" * 45 + "\n")
 
 
@@ -100,17 +75,6 @@ class TelloController:
             self._tello.land()
         self.is_flying = False
 
-    def emergency_land(self) -> None:
-        print("--> Emergency land")
-        self.cancel_burst()
-        if not self.dry_run and self._tello is not None:
-            try:
-                self._tello.send_rc_control(0, 0, 0, 0)
-                self._tello.emergency()
-            except Exception:
-                self._tello.land()
-        self.is_flying = False
-
     def hover(self) -> None:
         if self.is_flying and time.monotonic() >= self._burst_until:
             self.send_rc(0, 0, 0, 0)
@@ -135,10 +99,6 @@ class TelloController:
     def cancel_burst(self) -> None:
         self._burst_until = 0.0
         self._burst_rc = (0, 0, 0, 0)
-
-    def forward_burst(self) -> None:
-        if self.start_burst((0, RC_SPEED, 0, 0), FORWARD_BURST_SECONDS):
-            print("--> Forward burst")
 
     def apply_motion(self) -> None:
         if self.burst_active:
@@ -235,24 +195,6 @@ class TelloController:
         frame = self._display_frame()
         cv2.imshow(WINDOW_NAME, cv2.resize(frame, VIDEO_SIZE))
         return cv2.waitKey(1) & 0xFF
-
-    def handle_keyboard(self, key: int) -> str:
-        """Apply a keypress. Returns exit, override, or idle."""
-        if key == 255:
-            return "idle"
-        if key == 27:
-            print("\n[!] Emergency exit from keyboard.")
-            return "exit"
-        command, rc = get_keyboard_command(key)
-        if command == "TAKEOFF":
-            self.takeoff()
-        elif command == "LAND":
-            self.land()
-        elif command == "FLIGHT" and any(rc):
-            self.cancel_burst()
-            self.send_rc(*rc)
-            return "override"
-        return "idle"
 
     def shutdown(self) -> None:
         print("\nShutting down Tello...")
