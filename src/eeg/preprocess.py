@@ -111,21 +111,14 @@ ARTIFACT_CLEANING: dict[str, ArtifactCleaning] = {
     "blink": ArtifactCleaning(channels=(FZ,), band=(0.5, 8.0), filter_order=2, car=True, recent_s=0.5, stat="peak"),
     # Closed eyes raise occipital alpha.
     "cerrar_ojos": ArtifactCleaning(channels=(PO7, OZ, PO8), band=EYES_CLOSED_BAND, car=True, recent_s=0.5),
-    # Real head turns: yaw rate, signed (left positive).
-    "cuello_izq": ArtifactCleaning(source="gyro", channels=(GYRO_Z,), recent_s=0.2, stat="mean"),
-    "cuello_der": ArtifactCleaning(source="gyro", channels=(GYRO_Z,), recent_s=0.2, stat="mean"),
-    # Imagined turns: no EEG feature separated them from rest; the residual head tilt does (left negative).
-    "giro_imag_izq": ArtifactCleaning(source="gyro", channels=(GYRO_Y,), recent_s=0.2, stat="mean"),
-    "giro_imag_der": ArtifactCleaning(source="gyro", channels=(GYRO_Y,), recent_s=0.2, stat="mean"),
-    # Facial EMG. Frowning is strong and broad (15-40 Hz, no CAR so the shared muscle signal is kept);
-    # smiling is weaker and only shows in high gamma once the shared part is removed.
-    "enojado": ArtifactCleaning(band=JAW_BAND, recent_s=0.5),
-    "happy": ArtifactCleaning(band=(30.0, 100.0), car=True, recent_s=0.5),
-    # Raising the left arm sways the head: yaw goes negative.
-    "brazo_izq": ArtifactCleaning(source="gyro", channels=(GYRO_Z,), recent_s=0.2, stat="mean"),
-    # Fists: the scalp sees almost no hand EMG, only a small body movement. No axis tells left from right.
-    "puno_izq": ArtifactCleaning(source="gyro", channels=(GYRO_X, GYRO_Y, GYRO_Z), recent_s=0.3),
-    "puno_der": ArtifactCleaning(source="gyro", channels=(GYRO_X, GYRO_Y, GYRO_Z), recent_s=0.3),
+    # Head turn to the right: yaw rate goes negative.
+    "cuello": ArtifactCleaning(source="gyro", channels=(GYRO_Z,), recent_s=0.2, stat="mean"),
+    # Raising either arm tips the head: pitch rate goes strongly negative (-50), a head turn only to -17.
+    "brazos": ArtifactCleaning(source="gyro", channels=(GYRO_X,), recent_s=0.2, stat="mean"),
+    # A fist barely reaches the scalp; what shows is a small body movement (peak ~3). Big movements are not a fist.
+    "puno": ArtifactCleaning(source="gyro", channels=(GYRO_X, GYRO_Y, GYRO_Z), recent_s=0.3),
+    # Frowning: broad facial EMG, same band as the jaw but 4x weaker (peak ~21 vs ~100).
+    "angry": ArtifactCleaning(band=JAW_BAND, recent_s=0.5),
 }
 
 

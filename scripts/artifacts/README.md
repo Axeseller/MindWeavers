@@ -1,56 +1,68 @@
-# One script per artifact
+# Inputs -> Tello
 
-Each file reads the Unicorn LSL stream, cleans the signal its own way and prints `>>> DETECTED: <name>` when its artifact happens. Only `jaw.py` moves the drone (take off, hover, land). Once we know which ones read well on the headset, we put a drone command in each `on_detect()`.
+Seven inputs, the ones on the whiteboard. `fly.py` runs them all on one stream and an arbiter makes sure one
+gesture becomes one input. The single-input scripts only print detections, for checking each one on its own.
+
+| Input | Gesture | Action | Script |
+|---|---|---|---|
+| `jaw` | clench the jaw 0.5-2 s | takeoff / land | `jaw.py` (flies on its own) |
+| `cerrar_ojos` | eyes closed 1.5 s | camera on / off | `cerrar_ojos.py` |
+| `blink` | blink | photo (camera on) | `blink.py` |
+| `brazos` | raise an arm, firmly | forward 1 s | `brazos.py` |
+| `puno` | close a fist | back 1 s | `puno.py` |
+| `cuello` | turn the head right | right 1 s | `cuello.py` |
+| `angry` | frown | left 1 s | `angry.py` |
 
 ```bash
-python scripts/artifacts/blink.py                  # headset LSL, Tello dry-run
-python scripts/artifacts/blink.py --live           # headset LSL, real Tello
-python scripts/artifacts/blink.py --threshold 40   # try another threshold
-python scripts/artifacts/blink.py --replay <csv>   # a recorded CSV, no hardware
-python scripts/artifacts/check_all.py <csv folder> # every detector on every recording
+python scripts/artifacts/doctor.py                  # first: Python, libraries, Unicorn stream (--tello: drone too)
+python scripts/artifacts/fly.py                     # all inputs, Tello dry-run: prints what it would do
+python scripts/artifacts/fly.py --live              # real Tello
+python scripts/artifacts/fly.py --inputs jaw,blink,cerrar_ojos   # a subset
+python scripts/artifacts/fly.py --threshold cuello=20 --why      # tune one threshold; see what the arbiter drops
+python scripts/artifacts/fly.py --replay <csv>      # a recording, no hardware
+python scripts/artifacts/cuello.py                  # one detector alone
+python scripts/artifacts/check_all.py <csv folder>  # every input on every recording, alone and through the arbiter
 ```
-
-## Camera mode
-```bash
-python scripts/artifacts/camera.py        # close eyes 1.5 s: camera on / off. Blink: photo (only while on)
-```
-`camera.py` runs `cerrar_ojos` and `blink` together, because closing or opening the eyes also looks like a blink:
-- **Blinks wait 0.6 s before they count.** If the eyes stay closed in that time, it was a close, not a blink.
-- **Blinks are ignored for 1 s after the eyes open.**
-
-On the recordings this filtering cut false photos:
-- **Closing the eyes:** from 29 to 1.
-- **Jaw clench:** from 19 to 1.
-
-It also costs some real blinks: it now takes 14 of the 18. Photos go to `data/recordings/`. Natural blinks also take photos while the camera is on.
 
 Where things live:
-- **Cleaning** (channels, filter, CAR, window, statistic): `src/eeg/preprocess.py`, `ARTIFACT_CLEANING`.
-- **Decision** (threshold, duration, direction, refractory): `src/eeg/detectors.py`, `ARTIFACT_PARAMS`.
-- **Live loop:** `_live.py`, the same steps as `scripts/jaw_takeoff.py`.
+- **Cleaning** (channels, filter, window, statistic): `src/eeg/preprocess.py`, `ARTIFACT_CLEANING`.
+- **Decision** (threshold, duration, direction, ceiling, refractory): `src/eeg/detectors.py`, `ARTIFACT_PARAMS`.
+- **Arbiter** (priority, vetoes): `src/eeg/arbiter.py`.
+- **Drone mapping**: `fly.py`, `PULSES` and `apply()`.
 
-## Results on the 2026-10-04 recordings (`check_all.py`)
+## How the arbiter keeps inputs apart
+One gesture fires several detectors: a head turn is also a small body movement (`puno`) and some neck EMG
+(`angry`); closing the eyes starts like a blink; a clench leaks into the blink band before the jaw RMS rises.
+`InputArbiter` resolves that:
+1. A firing is **pending for 0.5 s** instead of acting at once.
+2. **Priority**: `jaw > cerrar_ojos > brazos > cuello > blink > angry > puno`. A higher one that fires replaces
+   the pending one. If a higher one is still active (eyes still closed, arm still moving), the pending one
+   waits: dropped if the higher one fires, emitted if it releases without firing. Blink sits above angry and
+   puno because a wrong photo is harmless and a wrong pulse moves the drone.
+3. **Vetoes**: `angry`, `puno` and `blink` are dropped when the head moved a lot meanwhile (gyroscope); `blink`
+   also when the jaw EMG rose (a clench starting). `puno` and `angry` have a ceiling in their own feature too.
+4. After an input is emitted, **1 s of silence**, including activations that began before it ended.
 
-None of the detectors fires on the rest recording.
+## Results on the 2026-10-04 recordings (`check_all.py`, table 2)
+Nothing fires on the rest recording. Rows are what was done, columns what `fly.py` emitted.
 
-| Script | Signal | Own recording | Also fires on |
-|---|---|---|---|
-| `jaw` | EMG 15-40 Hz, 0.5-2 s | 15 / 18 | - |
-| `blink` | Fz 0.5-8 Hz, signed | 18 / 18 | jaw, eyes closing, eye movement with eyes closed |
-| `cerrar_ojos` | occipital alpha held 1.5 s | 9 / 9 | - |
-| `cuello_izq` | gyro yaw + | 14 / 14 | 2 from brazo der |
-| `cuello_der` | gyro yaw − | 14 / 14 | brazo izq (8) |
-| `giro_imag_izq` | gyro pitch − | 14 / 14 | real neck and arm movements |
-| `giro_imag_der` | gyro pitch + | 11 / 14 | brazo der (9), cuello izq (5) |
-| `enojado` | EMG 15-40 Hz | 14 / 14 | any muscle activity (jaw, neck, arms) |
-| `happy` | EMG 30-100 Hz after CAR | 13 / 14 | blinks, neck, arms |
-| `brazo_izq` | gyro yaw − | 14 / 18 | cuello der (15) |
-| `puno_izq` / `puno_der` | gyro magnitude | 11 / 18, 14 / 18 | each other, and almost everything else |
+| Done | jaw | cerrar_ojos | brazos | cuello | blink | angry | puno |
+|---|---|---|---|---|---|---|---|
+| jaw x18 | **15** | | | | | | |
+| eyes closed x9 | | **8** | | | 2 | | |
+| blink x18 | | | | | **15** | | |
+| right arm x18 | | | **13** | | 1 | 1 | |
+| left arm x18 | | 1 | **8** | 3 | | 1 | |
+| head right x14 | | | | **13** | 1 | | |
+| frown x14 | | | 1 | | 1 | **12** | |
+| left fist x18 | | | | | 1 | | **10** |
+| right fist x18 | | | | | 2 | | **11** |
+| head left x14 (not an input) | 1 | | | 2 | | 1 | |
 
-Raising the right arm no longer has a script: either fist takes its command (up).
-
-How to read the table:
-- **Head and arm movements are read by the gyroscope.** The head turns with them. This includes the imagined head turns: the person still moved slightly, and no EEG feature separated those recordings from rest.
-- **Left/right pairs** fire only when the first movement goes their way, and they then ignore the return swing. Even so, a real neck turn and raising the arm on the other side look the same: both turn the head the same way.
-- **The fists cannot be told apart.** The scalp barely sees the hand.
-- These numbers come from one session of one person, replayed through the same code as the live loop. Expect lower numbers on another day.
+What this says:
+- **Jaw, eyes, blink, head right, frown**: reliable, and nothing moves the drone by mistake.
+- **Arms**: the right arm reads well; the left arm only 8/18 and 3 of them read as "right". Raise the arm firmly.
+- **Fists**: 10-11 of 18. A fist barely reaches the headset; what is read is the small body movement. Any
+  bigger movement is discarded on purpose, so stay still otherwise.
+- **Turning the head left** is not an input and still fires something 4 times in 14. Only turn right.
+- One session of one person. Expect lower numbers on another day; `--threshold` adjusts without code changes.

@@ -188,6 +188,7 @@ class ArtifactParams:
     hold:         fire once while still active after min_s (eyes closed), instead of on release.
     direction:    0 for a magnitude. +1/-1 for a signed feature: only an onset of that sign fires,
                   and an onset of the other sign still starts the refractory so its return is not read.
+    ceiling:      if the activation ever exceeds this, it was a bigger artifact and is discarded.
     refractory_s: nothing new starts until this long after an activation ends.
     release_ratio: the activation ends when the feature drops below threshold * release_ratio.
     """
@@ -197,6 +198,7 @@ class ArtifactParams:
     max_s: float = INF
     hold: bool = False
     direction: int = 0
+    ceiling: float = INF
     refractory_s: float = 1.0
     release_ratio: float = 0.6
 
@@ -205,15 +207,10 @@ ARTIFACT_PARAMS: dict[str, ArtifactParams] = {
     "jaw": ArtifactParams(threshold=JAW_TAKEOFF_THRESHOLD, min_s=0.5, max_s=2.0, refractory_s=0.8),
     "blink": ArtifactParams(threshold=30.0, max_s=0.8, refractory_s=0.8),
     "cerrar_ojos": ArtifactParams(threshold=3.0, min_s=1.5, hold=True, refractory_s=1.0),
-    "cuello_izq": ArtifactParams(threshold=18.0, min_s=0.1, direction=+1, refractory_s=1.5),
-    "cuello_der": ArtifactParams(threshold=17.0, min_s=0.1, direction=-1, refractory_s=1.5),
-    "giro_imag_izq": ArtifactParams(threshold=6.0, min_s=0.1, direction=-1, refractory_s=1.5),
-    "giro_imag_der": ArtifactParams(threshold=5.5, min_s=0.1, direction=+1, refractory_s=1.5),
-    "enojado": ArtifactParams(threshold=6.0, min_s=0.2, refractory_s=1.5),
-    "happy": ArtifactParams(threshold=1.6, min_s=0.2, refractory_s=1.5),
-    "brazo_izq": ArtifactParams(threshold=12.0, min_s=0.1, direction=-1, refractory_s=1.5),
-    "puno_izq": ArtifactParams(threshold=2.0, min_s=0.1, refractory_s=1.5),
-    "puno_der": ArtifactParams(threshold=2.0, min_s=0.1, refractory_s=1.5),
+    "cuello": ArtifactParams(threshold=17.0, min_s=0.1, direction=-1, refractory_s=1.5),
+    "brazos": ArtifactParams(threshold=20.0, min_s=0.1, direction=-1, refractory_s=1.5),
+    "puno": ArtifactParams(threshold=2.0, min_s=0.1, ceiling=8.0, refractory_s=1.5),
+    "angry": ArtifactParams(threshold=6.0, min_s=0.2, ceiling=25.0, refractory_s=1.5),
 }
 
 
@@ -234,6 +231,11 @@ class ThresholdDetector:
     def active(self) -> bool:
         return self._active
 
+    @property
+    def started_at(self) -> float:
+        """When the current (or last) activation began."""
+        return self._started_at
+
     def update(self, value: float, timestamp: float) -> bool:
         p = self.params
         level = abs(value) if p.direction else value
@@ -251,7 +253,7 @@ class ThresholdDetector:
             self.peak = value
         duration = timestamp - self._started_at
         wanted = not p.direction or self._sign == p.direction
-        if p.hold and wanted and not self._emitted and duration >= p.min_s:
+        if p.hold and wanted and not self._emitted and duration >= p.min_s and abs(self.peak) <= p.ceiling:
             self._emitted = True
             return True
         if level >= p.threshold * p.release_ratio:
@@ -259,6 +261,6 @@ class ThresholdDetector:
 
         self._active = False
         self._refractory_until = timestamp + p.refractory_s
-        if p.hold or not wanted:
+        if p.hold or not wanted or abs(self.peak) > p.ceiling:
             return False
         return p.min_s <= duration <= p.max_s
