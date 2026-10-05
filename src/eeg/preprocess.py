@@ -127,8 +127,6 @@ ARTIFACT_CLEANING: dict[str, ArtifactCleaning] = {
     # Fists: the scalp sees almost no hand EMG, only a small body movement. No axis tells left from right.
     "puno_izq": ArtifactCleaning(source="gyro", channels=(GYRO_X, GYRO_Y, GYRO_Z), recent_s=0.3),
     "puno_der": ArtifactCleaning(source="gyro", channels=(GYRO_X, GYRO_Y, GYRO_Z), recent_s=0.3),
-    # Thinking "forward": the only change in the recording is occipital alpha (eyes were likely closed).
-    "pensamiento_adelante": ArtifactCleaning(channels=(PO7, OZ, PO8), band=EYES_CLOSED_BAND, car=True, recent_s=0.5),
 }
 
 

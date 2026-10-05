@@ -31,7 +31,6 @@ RECORDINGS: dict[str, tuple[str, int]] = {
     "brazo_der": ("brazoarriba*.csv", 18),
     "puno_izq": ("pu*oizquierdo*.csv", 18),
     "puno_der": ("pu*oderecho*.csv", 18),
-    "pensamiento_adelante": ("pensamiento*.csv", 0),
 }
 REFERENCES = {"rest": "rest_*.csv", "ojos_cerrados_base": "baselineojoscerrados*.csv"}
 SETTLE_S = 5.0  # the headset settles during the first seconds of every recording

@@ -215,7 +215,6 @@ ARTIFACT_PARAMS: dict[str, ArtifactParams] = {
     "brazo_der": ArtifactParams(threshold=10.0, min_s=0.1, direction=+1, refractory_s=1.5),
     "puno_izq": ArtifactParams(threshold=2.0, min_s=0.1, refractory_s=1.5),
     "puno_der": ArtifactParams(threshold=2.0, min_s=0.1, refractory_s=1.5),
-    "pensamiento_adelante": ArtifactParams(threshold=4.0, min_s=1.5, hold=True, refractory_s=2.0),
 }
 
 
