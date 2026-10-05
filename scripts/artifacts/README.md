@@ -1,5 +1,23 @@
 # Inputs -> Tello
 
+## Simple flight: `vuelo.py`
+Three inputs, connects to the real Tello by default:
+
+| Gesture | Action |
+|---|---|
+| jaw clench (1st) | takeoff |
+| turn the head to the RIGHT | forward 1 s |
+| blink | back 1 s |
+| jaw clench (2nd) | land |
+
+```bash
+python scripts/artifacts/calibrate.py --inputs jaw,cuello,blink   # once per person (~3 min)
+python scripts/artifacts/vuelo.py --dry-run                       # test without the drone
+python scripts/artifacts/vuelo.py                                 # real flight (Tello Wi-Fi first); Ctrl+C lands
+```
+
+## Full set: `fly.py`
+
 Seven inputs, the ones on the whiteboard. `fly.py` runs them all on one stream and an arbiter makes sure one
 gesture becomes one input. The single-input scripts only print detections, for checking each one on its own.
 
