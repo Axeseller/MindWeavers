@@ -212,7 +212,6 @@ ARTIFACT_PARAMS: dict[str, ArtifactParams] = {
     "enojado": ArtifactParams(threshold=6.0, min_s=0.2, refractory_s=1.5),
     "happy": ArtifactParams(threshold=1.6, min_s=0.2, refractory_s=1.5),
     "brazo_izq": ArtifactParams(threshold=12.0, min_s=0.1, direction=-1, refractory_s=1.5),
-    "brazo_der": ArtifactParams(threshold=10.0, min_s=0.1, direction=+1, refractory_s=1.5),
     "puno_izq": ArtifactParams(threshold=2.0, min_s=0.1, refractory_s=1.5),
     "puno_der": ArtifactParams(threshold=2.0, min_s=0.1, refractory_s=1.5),
 }

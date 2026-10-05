@@ -2,6 +2,7 @@
 
 Recording: puñoderecho3sec. Signal: gyroscope magnitude; cannot tell left from right fist.
 Cleaning: eeg.preprocess.ARTIFACT_CLEANING["puno_der"]. Decision: eeg.detectors.ARTIFACT_PARAMS["puno_der"].
+Proposed command: UP (replaces raising the right arm). Either fist triggers it: no signal tells them apart.
 Not mapped to a drone command yet: each detection is only printed. Put the command in on_detect().
 
     python scripts/artifacts/puno_der.py                  # headset LSL, Tello dry-run

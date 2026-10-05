@@ -28,11 +28,12 @@ RECORDINGS: dict[str, tuple[str, int]] = {
     "enojado": ("enojado*.csv", 14),
     "happy": ("happyface*.csv", 14),
     "brazo_izq": ("brazoizq*.csv", 18),
-    "brazo_der": ("brazoarriba*.csv", 18),
     "puno_izq": ("pu*oizquierdo*.csv", 18),
     "puno_der": ("pu*oderecho*.csv", 18),
 }
 REFERENCES = {"rest": "rest_*.csv", "ojos_cerrados_base": "baselineojoscerrados*.csv"}
+# Recorded but without a detector of their own; still checked for false detections.
+OTHER_RECORDINGS = {"brazo_der": "brazoarriba*.csv"}
 SETTLE_S = 5.0  # the headset settles during the first seconds of every recording
 REFERENCE_SETTLE_S = 10.0  # rest and eyes-closed include cap adjustment up to ~10 s
 
@@ -50,7 +51,7 @@ def main() -> None:
     args = parser.parse_args()
 
     names = args.only.split(",") if args.only else list(ARTIFACT_PARAMS)
-    sources = {**{n: pattern for n, (pattern, _) in RECORDINGS.items()}, **REFERENCES}
+    sources = {**{n: pattern for n, (pattern, _) in RECORDINGS.items()}, **OTHER_RECORDINGS, **REFERENCES}
     rows = {}
     for label, pattern in sources.items():
         path = find(args.folder, pattern)

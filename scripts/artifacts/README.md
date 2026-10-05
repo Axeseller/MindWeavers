@@ -31,8 +31,9 @@ None of the detectors fires on the rest recording.
 | `enojado` | EMG 15-40 Hz | 14 / 14 | any muscle activity (jaw, neck, arms) |
 | `happy` | EMG 30-100 Hz after CAR | 13 / 14 | blinks, neck, arms |
 | `brazo_izq` | gyro yaw − | 14 / 18 | cuello der (15) |
-| `brazo_der` | gyro yaw + | 9 / 18 | cuello izq (19) |
 | `puno_izq` / `puno_der` | gyro magnitude | 11 / 18, 14 / 18 | each other, and almost everything else |
+
+Raising the right arm no longer has a script: either fist takes its command (up).
 
 How to read the table:
 - **Head and arm movements are read by the gyroscope.** The head turns with them. This includes the imagined head turns: the person still moved slightly, and no EEG feature separated those recordings from rest.

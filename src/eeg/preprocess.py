@@ -121,9 +121,8 @@ ARTIFACT_CLEANING: dict[str, ArtifactCleaning] = {
     # smiling is weaker and only shows in high gamma once the shared part is removed.
     "enojado": ArtifactCleaning(band=JAW_BAND, recent_s=0.5),
     "happy": ArtifactCleaning(band=(30.0, 100.0), car=True, recent_s=0.5),
-    # Raising an arm sways the head: yaw goes negative for the left arm, positive for the right.
+    # Raising the left arm sways the head: yaw goes negative.
     "brazo_izq": ArtifactCleaning(source="gyro", channels=(GYRO_Z,), recent_s=0.2, stat="mean"),
-    "brazo_der": ArtifactCleaning(source="gyro", channels=(GYRO_Z,), recent_s=0.2, stat="mean"),
     # Fists: the scalp sees almost no hand EMG, only a small body movement. No axis tells left from right.
     "puno_izq": ArtifactCleaning(source="gyro", channels=(GYRO_X, GYRO_Y, GYRO_Z), recent_s=0.3),
     "puno_der": ArtifactCleaning(source="gyro", channels=(GYRO_X, GYRO_Y, GYRO_Z), recent_s=0.3),
