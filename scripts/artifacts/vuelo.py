@@ -69,11 +69,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--replay", type=Path, help="Run on a recorded CSV instead of LSL (use with --dry-run)")
     parser.add_argument("--threshold", action="append", default=[], metavar="INPUT=VALUE", help="Override a threshold")
     parser.add_argument("--why", action="store_true", help="Also print the firings the arbiter dropped, and why")
+    parser.add_argument("--no-calibration", action="store_true", help="Ignore data/calibration/thresholds.json")
     return parser.parse_args()
 
 
 def build_arbiter(args: argparse.Namespace) -> InputArbiter:
-    if load_calibration():
+    if load_calibration() and not args.no_calibration:
         arbiter = InputArbiter(INPUTS, params=calibrated_params())
     else:
         arbiter = InputArbiter(INPUTS)
@@ -169,7 +170,9 @@ def main() -> None:
     dry_run = args.dry_run or replay
     print(f"Mode: {'DRY-RUN (no drone)' if dry_run else 'LIVE - real Tello'}")
     arbiter = build_arbiter(args)
-    print("Thresholds: " + (f"calibrated ({CALIBRATION})" if load_calibration() else "tested defaults"))
+    source = f"calibrated ({CALIBRATION})" if load_calibration() and not args.no_calibration else "tested defaults"
+    print(f"Thresholds: {source}")
+    print("  " + "  ".join(f"{name}={arbiter.detectors[name].params.threshold:g}" for name in INPUTS))
 
     # 1. Connect to the drone and check the battery (as Tello/Inicio.py does)
     tello = connect_tello(dry_run)
