@@ -93,6 +93,58 @@ class MovementSkillTest(unittest.TestCase):
             skills.forward(controller, speed=150)
 
 
+class RotationSkillTest(unittest.TestCase):
+    def test_speed_scales_yaw_sign(self) -> None:
+        controller, fake = make_controller()
+        skills.yaw_clockwise(controller, seconds=1.0, speed=30)
+        self.assertEqual(fake.calls[-1], ("rc", 0, 0, 0, 30))
+        skills.yaw_counterclockwise(controller, seconds=1.0, speed=30)
+        self.assertEqual(fake.calls[-1], ("rc", 0, 0, 0, -30))
+
+    def test_grounded_rotation_is_ignored(self) -> None:
+        for name in ("yaw_clockwise", "yaw_counterclockwise"):
+            with self.subTest(skill=name):
+                controller, fake = make_controller(flying=False)
+                self.assertFalse(getattr(skills, name)(controller))
+                self.assertEqual(fake.calls, [])
+
+    def test_rotation_expires_into_hover(self) -> None:
+        for name, rc in (("yaw_clockwise", (0, 0, 0, RC_SPEED)), ("yaw_counterclockwise", (0, 0, 0, -RC_SPEED))):
+            with self.subTest(skill=name):
+                controller, fake = make_controller()
+                self.assertTrue(skills.run_skill(controller, name, seconds=0.1))
+                self.assertFalse(controller.burst_active)
+                self.assertIn(("rc", *rc), fake.calls)
+                self.assertEqual(fake.calls[-1], ("rc", 0, 0, 0, 0))
+
+    def test_land_and_emergency_cancel_rotation(self) -> None:
+        controller, fake = make_controller()
+        skills.yaw_clockwise(controller, seconds=5.0)
+        controller.land()
+        self.assertFalse(controller.burst_active)
+        self.assertEqual(fake.calls[-2:], [("rc", 0, 0, 0, 0), ("land",)])
+
+        controller, fake = make_controller()
+        skills.yaw_counterclockwise(controller, seconds=5.0)
+        controller.emergency_land()
+        self.assertFalse(controller.burst_active)
+        self.assertEqual(fake.calls[-2:], [("rc", 0, 0, 0, 0), ("emergency",)])
+
+    def test_keyboard_rotation_only_after_takeoff(self) -> None:
+        controller, fake = make_controller(flying=False)
+        self.assertEqual(controller.handle_keyboard(ord("t")), "override")
+        self.assertEqual(fake.calls, [])
+
+        controller.takeoff()
+        self.assertEqual(controller.handle_keyboard(ord("t")), "override")
+        self.assertEqual(fake.calls[-1], ("rc", 0, 0, 0, RC_SPEED))
+        self.assertEqual(controller.handle_keyboard(ord("r")), "override")
+        self.assertEqual(fake.calls[-1], ("rc", 0, 0, 0, -RC_SPEED))
+
+        controller.apply_motion()
+        self.assertEqual(fake.calls[-1], ("rc", 0, 0, 0, 0))
+
+
 class ToggleTakeoffLandTest(unittest.TestCase):
     def test_toggle_takes_off_then_lands(self) -> None:
         controller, fake = make_controller(flying=False)
