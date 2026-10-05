@@ -1,14 +1,15 @@
 # Inputs -> Tello
 
 ## Simple flight: `vuelo.py`
-Three inputs, connects to the real Tello by default:
+Three inputs, connects to the real Tello by default. Each gesture becomes the key `Tello/Mover.py` would get
+(Q, W, S, E) and is executed the same way Mover.py does it:
 
 | Gesture | Action |
 |---|---|
-| jaw clench (1st) | takeoff |
-| turn the head to the RIGHT | forward 1 s |
-| blink | back 1 s |
-| jaw clench (2nd) | land |
+| jaw clench (1st) | Q: takeoff |
+| turn the head to the RIGHT | W: forward 1 s |
+| blink | S: back 1 s |
+| jaw clench (2nd) | E: land |
 
 ```bash
 python scripts/artifacts/calibrate.py --inputs jaw,cuello,blink   # once per person (~3 min)
