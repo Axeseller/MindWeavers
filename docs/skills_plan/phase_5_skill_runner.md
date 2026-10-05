@@ -44,7 +44,7 @@ The keyboard lease is `HOLD_LEASE_S = 0.6`. It covers the ~0.5 s OS key-repeat d
   - Flags: `--live`, `--no-video`, `--no-eeg`, `--threshold`, `--stream`.
   - Without a headset stream, dry-run continues keyboard-only; `--live` exits unless `--no-eeg` is given.
 - `scripts/artifacts/fly.py` — supported multi-artifact runner. It uses `InputArbiter` and per-session calibration; see `scripts/artifacts/README.md`.
-- `src/app.py` — deprecated compatibility wrapper that forwards supported arguments to `scripts/artifacts/fly.py`.
+- `src/app.py` — main entry point; runs `scripts/artifacts/vuelo.py` (jaw takeoff/land, head forward, blink back) and translates the old app.py flags.
 - `scripts/jaw_takeoff.py` — unchanged one-shot reference test.
 
 ## Safety

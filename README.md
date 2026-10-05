@@ -3,7 +3,7 @@
 Control a DJI Tello with EEG artifacts from a Unicorn Hybrid Black headset.
 
 One Windows laptop talks to both devices: Unicorn Recorder streams **raw** LSL, and
-`scripts/artifacts/fly.py` maps calibrated artifacts to Tello commands.
+`src/app.py` is the main program: jaw takes off and lands, turning the head goes forward, a blink goes back.
 
 ## Artifact map
 
@@ -66,17 +66,19 @@ python scripts/manual_mode.py --no-eeg
 python scripts/manual_mode.py --live
 ```
 
-Artifact flight pipeline (dry-run by default):
+Main program (flies the real Tello by default; `--dry-run` prints instead):
 
 ```bash
 python scripts/artifacts/doctor.py
-python scripts/artifacts/calibrate.py
-python scripts/artifacts/fly.py
-python scripts/artifacts/fly.py --live
+python scripts/artifacts/calibrate.py --inputs jaw,cuello,blink
+python src/app.py --dry-run
+python src/app.py
 ```
 
-`fly.py` is the supported integration entry point. `src/app.py` is deprecated
-and forwards compatible commands to it. Use replay and dry-run before `--live`.
+`src/app.py` runs `scripts/artifacts/vuelo.py`: jaw clench (1st) takes off, turning the head goes forward 1 s,
+a blink goes back 1 s, jaw clench (2nd) lands, all through `Tello/Mover.py`. For every input (camera, smile,
+frown, fist) use `scripts/artifacts/fly.py` (dry-run by default, `--live` for the drone). Use replay and dry-run
+before flying.
 
 Tests (no hardware):
 
@@ -107,5 +109,5 @@ Axel, Ian, Chavez, Luisao, Hector.
 - Unicorn / LSL: Recorder, stream name, `test_lsl.py`, baselines
 - Tello SDK: `src/tello/controller.py`, safety, photo
 - EEG mapping: `src/eeg/`, [docs/mapping.md](docs/mapping.md)
-- Integration: `scripts/artifacts/fly.py`
+- Integration: `src/app.py` (runs `scripts/artifacts/vuelo.py`); all inputs: `scripts/artifacts/fly.py`
 - Demo / pitch: [docs/pitch.md](docs/pitch.md)

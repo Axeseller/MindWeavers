@@ -1,8 +1,17 @@
-"""Deprecated compatibility entry point.
+"""Main entry point: simple flight with the Unicorn, through Tello/Mover.py.
 
-Use ``python scripts/artifacts/fly.py`` for the integrated artifact pipeline.
-This wrapper keeps common legacy invocations working while the old, separate
-jaw/blink loop is retired.
+    jaw clench (1st)  -> Q: takeoff
+    turn the head     -> W: forward 1 s (either side)
+    blink             -> S: back 1 s
+    jaw clench (2nd)  -> E: land
+
+    python src/app.py --dry-run     # no drone: prints what it would send
+    python src/app.py               # REAL Tello (connect to its Wi-Fi first); Ctrl+C lands
+
+The flight itself lives in scripts/artifacts/vuelo.py; this file keeps `src/app.py` as the one command to run and
+translates the flags of the old app.py. Calibrate once per person and session:
+`python scripts/artifacts/calibrate.py --inputs jaw,cuello,blink`. For every input (camera, smile, frown, fist)
+use `python scripts/artifacts/fly.py`.
 """
 
 from __future__ import annotations
@@ -13,17 +22,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT_DIR = ROOT / "scripts" / "artifacts"
-ARTIFACT_RUNNER = ARTIFACT_DIR / "fly.py"
+FLIGHT = ARTIFACT_DIR / "vuelo.py"
 
 
 def translate_legacy_args(argv: list[str]) -> list[str]:
-    """Translate flags whose safe meaning is unchanged in the artifact runner."""
+    """Translate the flags of the old app.py into vuelo.py's."""
     translated: list[str] = []
     index = 0
     while index < len(argv):
         arg = argv[index]
-        if arg in ("--dry-run", "--no-video"):
-            # fly.py is dry-run and camera-off by default.
+        if arg == "--no-video":
+            # vuelo.py never uses the camera.
             index += 1
             continue
         if arg == "--no-lsl":
@@ -47,18 +56,13 @@ def translate_legacy_args(argv: list[str]) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Run the canonical artifact pipeline through the old command path."""
-    print(
-        "DEPRECATED: src/app.py now forwards to scripts/artifacts/fly.py. "
-        "Update scripts and documentation to use the new path.",
-        file=sys.stderr,
-    )
+    """Run the simple flight."""
     forwarded = translate_legacy_args(sys.argv[1:] if argv is None else argv)
     previous_argv, previous_path = sys.argv, list(sys.path)
     try:
-        sys.argv = [str(ARTIFACT_RUNNER), *forwarded]
+        sys.argv = [str(FLIGHT), *forwarded]
         sys.path.insert(0, str(ARTIFACT_DIR))
-        runpy.run_path(str(ARTIFACT_RUNNER), run_name="__main__")
+        runpy.run_path(str(FLIGHT), run_name="__main__")
     finally:
         sys.argv = previous_argv
         sys.path[:] = previous_path
