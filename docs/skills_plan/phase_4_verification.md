@@ -1,5 +1,9 @@
 # Phase 4 — Calibration and integration verification
 
+> The legacy `src/app.py` verification route has been retired. Verify the
+> current multi-artifact pipeline with the replay, calibration, and dry-run
+> commands in `scripts/artifacts/README.md`.
+
 ## Goal
 
 Prove the skills work from unit level to a supervised live flight, in that order. Stop at the first failing step.
@@ -19,7 +23,7 @@ Prove the skills work from unit level to a supervised live flight, in that order
    ```bash
    python scripts/test_tello.py --dry-run
    python scripts/manual_mode.py
-   python src/app.py --dry-run --no-lsl
+   python scripts/artifacts/fly.py --replay <recording.csv>
    python scripts/jaw_takeoff.py   # needs the LSL stream
    ```
 
@@ -37,7 +41,7 @@ Prove the skills work from unit level to a supervised live flight, in that order
    - Prerequisites: battery at least 20%, laptop on `TELLO-XXXXXX`, open area, Unicorn raw LSL verified with `scripts/test_lsl.py` before switching Wi-Fi (`docs/hardware.md`).
    - `python scripts/test_tello.py`
    - `python scripts/manual_mode.py --live`: takeoff, short press of each movement and yaw key, land.
-   - `python src/app.py`: short clench takes off, next short clench (after cooldown) lands; long clench lands.
+   - `python scripts/artifacts/fly.py --live --inputs jaw`: short clench takes off, then lands; calibrate the session first.
 
 ## Acceptance criteria
 

@@ -1,17 +1,19 @@
 from __future__ import annotations
 
-import math
 import sys
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-import app  # noqa: E402
-from eeg.detectors import jaw_takeoff_config  # noqa: E402
 from mapping.commands import ACTION_SKILLS, KEY_NONE, KEY_SPACE, Action, CommandMapper, Event, key_to_action  # noqa: E402
 from tello.controller import RC_SPEED, TelloController  # noqa: E402
 from tello.skills import SKILLS, SkillRunner, skill_rc  # noqa: E402
+
+
+def request_action(runner: SkillRunner, action: Action) -> bool:
+    """Exercise the action-to-skill table without depending on a retired entry point."""
+    return runner.request(ACTION_SKILLS[action])
 
 
 class CommandMapperTest(unittest.TestCase):
@@ -43,7 +45,7 @@ class CommandMapperTest(unittest.TestCase):
         controller = TelloController(dry_run=True)
         controller.takeoff()
         action = CommandMapper().map(Event.ROTATE_CCW, controller.is_flying, 0.0)
-        app.apply_action(SkillRunner(controller), action)
+        request_action(SkillRunner(controller), action)
         self.assertEqual(controller.burst_rc, (0, 0, 0, -RC_SPEED))
 
 
@@ -91,26 +93,18 @@ class ApplyActionTest(unittest.TestCase):
             with self.subTest(action=action):
                 controller = TelloController(dry_run=True)
                 controller.takeoff()
-                app.apply_action(SkillRunner(controller), action)
+                request_action(SkillRunner(controller), action)
                 self.assertEqual(controller.burst_rc, skill_rc(skill))
 
     def test_takeoff_and_land_actions(self) -> None:
         controller = TelloController(dry_run=True)
         runner = SkillRunner(controller, dry_run_process_s=0.0)
-        app.apply_action(runner, Action.TAKEOFF)
+        request_action(runner, Action.TAKEOFF)
         runner.wait_idle(2)
         self.assertTrue(controller.is_flying)
-        app.apply_action(runner, Action.LAND)
+        request_action(runner, Action.LAND)
         runner.wait_idle(2)
         self.assertFalse(controller.is_flying)
-
-    def test_app_uses_calibrated_jaw_timing(self) -> None:
-        config = app.detector_config(40.0)
-        calibrated = jaw_takeoff_config(40.0)
-        self.assertEqual(config.jaw_short_min, calibrated.jaw_short_min)
-        self.assertEqual(config.jaw_short_max, calibrated.jaw_short_max)
-        self.assertEqual(config.jaw_long_min, calibrated.jaw_long_min)
-        self.assertTrue(math.isfinite(config.blink_peak_threshold))
 
 
 if __name__ == "__main__":
