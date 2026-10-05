@@ -1,46 +1,71 @@
-# Gestos -> funciones de vuelo (puños y brazos)
+# Gestos -> funciones de vuelo
 
-Archivos (ninguno toca el repo todavía):
+Un archivo por input en `inputs/`. Cada uno dice qué grabación usa, qué función de vuelo dispara, si necesita la señal de los ojos y cuánto esperar antes de aceptar otro gesto. Para agregar, quitar o cambiar un gesto solo se toca su archivo.
 
-| Archivo | Qué hace |
-|---|---|
-| `pipeline.py` | Parámetros (`Params`) y todo el procesamiento: limpieza, detección de actividad, ventanas, features |
-| `train.py` | Entrena por etapas, valida sin fugas y elige el umbral de confianza de cada etapa |
-| `live_classifier.py` | Lee el LSL del Unicorn y escribe la función de vuelo de cada gesto |
-| `evaluate_replay.py` | Pasa los CSV por el clasificador en vivo para comprobar la mecánica |
+| Input | Función de vuelo | Grupo |
+|---|---|---|
+| `puno_izq` / `puno_der` | GIRAR_IZQUIERDA / GIRAR_DERECHA | puño |
+| `brazo_izq` / `brazo_der` | BAJAR / SUBIR | brazo |
+| `cuello_izq` / `cuello_der` | MOVER_IZQUIERDA / MOVER_DERECHA | cuello |
+| `giro_imag_izq` / `giro_imag_der` | GIRAR_IZQUIERDA / GIRAR_DERECHA | giro imaginario |
+| `blink` | FOTO | - |
+| `happy` | ADELANTE | - |
+| `cerrar_ojos` | ATERRIZAR | - |
+| `enojado` | ATRAS | - |
 
+## Uso
 ```bash
-python train.py --data <carpeta con los CSV>       # crea gesture_model.joblib
-python live_classifier.py                          # LSL en vivo
-python live_classifier.py --replay puño.csv        # probar con una grabación
+python train.py --list                                          # inputs y presets
+python train.py --data <carpeta CSV> --preset brazos            # -> models/brazos.joblib
+python train.py --data <carpeta CSV> --inputs puno_izq,puno_der,blink,happy
+python live_classifier.py --model models/brazos.joblib          # LSL en vivo
+python live_classifier.py --model models/brazos.joblib --replay puño.csv
+python evaluate_replay.py <carpeta CSV> models/brazos.joblib    # cuenta aciertos/errores
 ```
+
+Presets validados: `brazos` (puños + brazos), `cabeza` (cuello izq/der, blink, happy) y `mente` (giro imaginario izq/der, cerrar ojos, enojado).
+
+## No actives los 12 a la vez
+Probado: con los 12 inputs juntos, 23 de 131 movimientos de regreso se vuelven comandos y los puños casi no se detectan (1-2 de 18). Hay inputs que en la señal son casi lo mismo: `cuello_izq` y `giro_imag_izq` son el mismo movimiento del cuello. Activa 4 o 5 que no choquen. `train.py` avisa si dos de los que elegiste se confunden.
 
 ## Pipeline
 1. **Limpieza:** se descartan los primeros 5 s, se quita el DC, se aplica referencia promedio (CAR) y notch de 60 Hz.
-2. **Inicio del gesto:** la actividad (EMG 30-100 Hz + giroscopio) debe superar `onset_z`, relativo a los últimos 20 s, **y** el piso absoluto medido en reposo.
-3. **Ventana:** 1 s alrededor del pico de actividad (0.3 s antes, 0.7 s después).
-4. **Features:** potencia por banda (4-8, 8-13, 13-30, 30-60, 60-100 Hz) x 8 canales, asimetrías C3/C4 y Fz/Oz, resumen del IMU y covarianza entre canales (espacio tangente) en 8-30 y 30-100 Hz.
-5. **Filtro de novedad:** si la ventana no se parece a ningún gesto entrenado, el resultado es UNSURE.
-6. **Etapas:** B brazo vs puño (LDA) -> C lado izq/der (puño: LDA con todo; brazo: IMU + EMG + forma del movimiento, en una ventana de 0.5 s antes / 1.0 s después; `train.py` elige entre LDA y logística).
-7. **Umbrales:** si una etapa no supera su umbral, el resultado es UNSURE y no se manda ningún comando.
+2. **Inicio del gesto:** la actividad debe superar `onset_z` (relativo a los últimos 20 s) **y** un piso absoluto medido en reposo. Suma EMG 30-100 Hz y giroscopio; si algún input activo tiene `USES_EYES = True`, también la señal de los ojos (EOG frontal 0.5-8 Hz).
+3. **Ventanas:** 1 s alrededor del pico de actividad, y otra de 0.5 s antes a 1.0 s después para la forma del movimiento.
+4. **Features en dos bloques:**
+   - `full`: potencia por banda x 8 canales, asimetrías, IMU y covarianza entre canales.
+   - `movement`: IMU, EMG y forma del movimiento.
+5. **Rechazos, en orden:**
+   - ¿Se parece a algún gesto entrenado? (distancia de novedad)
+   - **Etapa A:** ¿es un gesto o solo otro movimiento? (regresar el cuello, bajar el brazo, soltar el puño)
+   - Gesto: en una sola etapa, o por grupo y luego izq/der. `train.py` compara los dos diseños y se queda con el que valida mejor. Cada par izq/der elige su bloque de features y tiene su propio umbral.
+6. Si algo no supera su umbral, el resultado es UNSURE y no se manda comando. Después de cada gesto se espera el `REFRACTORY_S` de ese input.
 
-## Resultados (validación por bloques de tiempo)
-| Etapa | Precisión | Con umbral |
+## Resultados
+Validados por bloques de tiempo:
+
+| Preset | Diseño elegido | Error validado |
 |---|---|---|
-| Brazo vs puño | 98.6 % | 0 % de error, contesta 99 % |
-| Puño izq vs der | 100 % | 0 % de error, contesta 94 % |
-| Brazo izq vs der | 91.7 % (antes 83 %) | 8.3 % de error, contesta 100 % |
+| brazos | por grupo | 4.5 % (puño izq/der 0 %, brazo izq/der 6.5 %) |
+| cabeza | una etapa | 1.7 % |
+| mente | una etapa | 1.7 % |
 
-## Mapa de vuelo (editar `FLIGHT` en live_classifier.py)
-puño izq -> GIRAR_IZQUIERDA · puño der -> GIRAR_DERECHA · brazo der -> SUBIR · brazo izq -> BAJAR
+Pasando las grabaciones por el script en vivo:
 
-## Pasando las grabaciones por el script en vivo
-| Archivo | Decisiones |
-|---|---|
-| puño izq | 13 correctas, 1 UNSURE |
-| puño der | 14 correctas, 1 leída como izq (un puño débil que el entrenamiento no contó) |
-| brazo izq | 18 correctas |
-| brazo der | 16 correctas, 2 UNSURE |
-| reposo | 1 disparo, en el segundo 7, cuando se acomodaban el casco |
+| Preset | Correctas | Equivocadas | UNSURE | Reposo |
+|---|---|---|---|---|
+| brazos | 59 | 1 | 12 | 0 comandos |
+| cabeza | 47 | 0 | 24 | 0 comandos |
+| mente | 44 | 0 | 29 | 0 comandos |
 
-El modelo se entrenó con estas mismas grabaciones, así que esta tabla comprueba la mecánica, no el error real.
+El único error en vivo es la "soltada" de un puño izquierdo en un tramo irregular al final de su grabación, leída como puño derecho con confianza 1.00.
+
+Los UNSURE incluyen los movimientos de regreso, que es correcto descartar, y algunas repeticiones reales que se pierden. Se prefiere no hacer nada a hacer lo equivocado.
+
+El modelo se entrenó con estas mismas grabaciones, así que la tabla en vivo comprueba la mecánica. El error real con otra persona u otro día será mayor. Para bajarlo hace falta grabar los gestos alternados en una misma sesión, con marcas de cuándo empieza cada uno.
+
+## Lo que no se pudo usar
+- **`pensamientoadelante`:** la actividad no tiene un ritmo regular, así que sin marcas de cuándo se pensó no se sabe qué ventana es el pensamiento. Hay que regrabarlo con marcas.
+- **Giro imaginario:** todavía trae tensión del cuello, así que el modelo lee músculo, no imaginación pura.
+- **`baselineojoscerrados`:** es un minuto entero con los ojos cerrados. Sirve de referencia, no como gesto.
+- **jaw:** se dejó fuera a propósito. Ya está en el detector del app principal.

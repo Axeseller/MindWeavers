@@ -56,11 +56,17 @@ class Params:
     # train.py measures these on the rest recording; these are the fallbacks.
     gyro_floor: float = 3.0        # deg/s, 100 ms mean
     emg_floor: float = 1.3         # uV, 100 ms mean, 30-100 Hz after CAR
+    # Eye activity (frontal EOG, 0.5-8 Hz at Fz). Blinks barely move the gyro or
+    # the 30-100 Hz band, so sets that include blinks must also listen to the eyes.
+    use_eog: bool = False
+    eog_floor: float = float("inf")
     refractory_s: float = 1.5      # no new gesture this soon after a decision
     history_s: float = 20.0        # rolling window for the envelope's median/MAD
     gate_type: float = 0.95        # minimum confidence per stage (overwritten by train.py)
     gate_puno: float = 0.95
     gate_brazo: float = 0.95
+    gate_flat: float = 0.95        # single-stage sets (e.g. cabeza)
+    gate_gesture: float = 0.5      # stage A: trained gesture vs other movement
 
 
 # ------------------------------------------------------------------ io
@@ -89,12 +95,14 @@ def clean_eeg(eeg: np.ndarray, params: Params = Params()) -> np.ndarray:
 
 # ------------------------------------------------------------------ envelope
 
-def raw_activity(data: np.ndarray, params: Params = Params()) -> tuple[np.ndarray, np.ndarray]:
-    """EMG power and gyro magnitude per sample, before normalisation."""
+def raw_activity(data: np.ndarray, params: Params = Params()):
+    """Per-sample activity before normalisation: EMG power, gyro magnitude, frontal EOG."""
     eeg = clean_eeg(data[:, EEG], params)
     emg = np.sqrt((signal.sosfiltfilt(bandpass_sos(30, 100), eeg, axis=0) ** 2).mean(axis=1))
     gyr = data[:, GYR]
-    return emg, np.linalg.norm(gyr - np.median(gyr, axis=0), axis=1)
+    gyro = np.linalg.norm(gyr - np.median(gyr, axis=0), axis=1)
+    eog = np.abs(signal.sosfiltfilt(bandpass_sos(0.5, 8, order=2), eeg[:, 0]))
+    return emg, gyro, eog
 
 
 def robust_z(x, ref=None):
@@ -104,15 +112,27 @@ def robust_z(x, ref=None):
     return (x - med) / mad
 
 
-def envelope(emg, gyro, emg_ref=None, gyro_ref=None):
-    env = robust_z(emg, emg_ref) + robust_z(gyro, gyro_ref)
+def envelope(emg, gyro, eog, params: Params = Params()):
+    env = robust_z(emg) + robust_z(gyro)
+    if params.use_eog:
+        env = env + robust_z(eog)
     return signal.sosfiltfilt(signal.butter(2, 3.0 / (FS / 2), output="sos"), env)
 
 
 def find_repetitions(data: np.ndarray, params: Params = Params()) -> np.ndarray:
-    env = envelope(*raw_activity(data, params))
+    env = envelope(*raw_activity(data, params), params=params)
     peaks, _ = signal.find_peaks(robust_z(env), height=params.peak_z, distance=int(params.min_gap_s * FS))
     return peaks
+
+
+def find_other_movements(data: np.ndarray, peaks: np.ndarray, params: Params = Params()) -> np.ndarray:
+    """Smaller activity bumps that are NOT the repetition itself: lowering the arm,
+    turning the head back to centre, releasing a fist. Live onset detection fires
+    on these too, so the classifier must learn to reject them."""
+    env = robust_z(envelope(*raw_activity(data, params), params=params))
+    bumps, _ = signal.find_peaks(env, height=params.peak_z * 0.5, distance=int(0.6 * FS))
+    keep = [b for b in bumps if np.min(np.abs(peaks - b)) > int(0.8 * FS)] if len(peaks) else list(bumps)
+    return np.asarray(keep, dtype=int)
 
 
 def epoch_at(data, peak, params: Params = Params()):
@@ -215,3 +235,30 @@ class Novelty:
 
     def distance(self, X):
         return np.sqrt(self.cov.mahalanobis(self.scaler.transform(np.atleast_2d(X))))
+
+
+# ------------------------------------------------------------------ unified features
+
+def input_features(window, arm_window, refs, params: Params = Params()) -> np.ndarray:
+    """One feature vector for any input, in two blocks (see feature_blocks):
+    'full'     brain/muscle bands, IMU, channel covariance over the 1 s window
+    'movement' IMU summary, EMG and movement shape over the longer window"""
+    return np.concatenate([full_features(window, refs, params), arm_side_features(arm_window, params)])
+
+
+def feature_blocks(window, arm_window, refs, params: Params = Params()) -> dict:
+    """Column ranges of each block inside input_features()."""
+    n_full = len(full_features(window, refs, params))
+    n_all = n_full + len(arm_side_features(arm_window, params))
+    return {"full": (0, n_full), "movement": (n_full, n_all), "all": (0, n_all)}
+
+
+class Block:
+    """A model that only looks at one block of columns of input_features()."""
+
+    def __init__(self, model, cols):
+        self.model, self.cols = model, cols
+        self.classes_ = model.classes_
+
+    def predict_proba(self, X):
+        return self.model.predict_proba(np.atleast_2d(X)[:, self.cols[0]:self.cols[1]])
