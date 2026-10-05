@@ -11,6 +11,8 @@ Do not change this table during a flight session. Tune detector thresholds, not 
 | `JAW_EMERGENCY` | Jaw EMG stays above threshold for more than 2.5 s | Emergency land |
 | `DOUBLE_BLINK` | Two frontal blink peaks within 500 ms | Save a still from the Tello camera |
 | Single blink | One isolated frontal peak | Ignored — people blink constantly |
+| `ROTATE_CW` | Not detected yet — gesture to be chosen and calibrated | Yaw clockwise burst (only while flying) |
+| `ROTATE_CCW` | Not detected yet — gesture to be chosen and calibrated | Yaw counter-clockwise burst (only while flying) |
 
 Flight commands share a **1.0 s cooldown** so one clench cannot take off and immediately land.
 

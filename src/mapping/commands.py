@@ -8,6 +8,8 @@ class Event(str, Enum):
     JAW_LONG = "JAW_LONG"
     JAW_EMERGENCY = "JAW_EMERGENCY"
     DOUBLE_BLINK = "DOUBLE_BLINK"
+    ROTATE_CW = "ROTATE_CW"
+    ROTATE_CCW = "ROTATE_CCW"
     BLINK = "BLINK"
     EYES_CLOSED = "EYES_CLOSED"
     EYES_OPENED = "EYES_OPENED"
@@ -42,6 +44,10 @@ class CommandMapper:
             return Action.EMERGENCY
         if event == Event.JAW_LONG:
             return Action.LAND
+        if event == Event.ROTATE_CW:
+            return Action.YAW_CW
+        if event == Event.ROTATE_CCW:
+            return Action.YAW_CCW
         if event != Event.JAW_SHORT:
             return None
         if now < self._next_flight_at:
