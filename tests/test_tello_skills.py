@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from tello import skills  # noqa: E402
 from tello.controller import RC_SPEED, TelloController  # noqa: E402
+from tello.skills import SkillRunner  # noqa: E402
 
 
 class FakeTello:
@@ -175,6 +176,27 @@ class CameraControllerTest(unittest.TestCase):
         self.assertIsNotNone(controller.stop_recording())
         self.assertFalse(controller.is_recording)
         controller.shutdown()
+
+
+class SkillRunnerTest(unittest.TestCase):
+    def test_request_takeoff_rejects_until_done(self) -> None:
+        controller = TelloController(dry_run=True)
+        runner = SkillRunner(controller, dry_run_process_s=0.05)
+        self.assertTrue(runner.request("takeoff"))
+        self.assertTrue(runner.busy)
+        self.assertFalse(runner.request("forward"))
+        self.assertTrue(runner._worker is not None)
+        runner._worker.join(1.0)
+        runner.tick()
+        self.assertTrue(controller.is_flying)
+        self.assertFalse(runner.busy)
+
+    def test_continuous_forward_while_flying(self) -> None:
+        controller = TelloController(dry_run=True)
+        controller.takeoff()
+        runner = SkillRunner(controller, dry_run_process_s=0.01)
+        self.assertTrue(runner.request("forward"))
+        self.assertEqual(controller.burst_rc, (0, RC_SPEED, 0, 0))
 
 
 if __name__ == "__main__":

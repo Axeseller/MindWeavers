@@ -170,3 +170,96 @@ class ArtifactDetector:
             self._last_blink_at = 0.0
             return Event.DOUBLE_BLINK
         return None
+
+
+@dataclass(frozen=True)
+class ArtifactSpec:
+    name: str
+    event: str
+    feature: str
+    threshold: float
+    min_s: float = 0.25
+    max_s: float = 3.0
+    refractory_s: float = 0.8
+    emit_on: str = "release"
+    prompt: str = ""
+
+
+class HoldDetector:
+    """Single-feature hold/peak detector used by the per-artifact scripts."""
+
+    def __init__(self, spec: ArtifactSpec) -> None:
+        self.spec = spec
+        self.active = False
+        self._started_at = 0.0
+        self._emitted = False
+        self._refractory_until = 0.0
+
+    def update(self, value: float, timestamp: float) -> str | None:
+        if timestamp < self._refractory_until:
+            return None
+        enter = self.spec.threshold
+        leave = enter * 0.6
+        if not self.active and value >= enter:
+            return self._on_enter(timestamp)
+        if not self.active:
+            return None
+        return self._on_active(value, leave, timestamp)
+
+    def _on_enter(self, timestamp: float) -> str | None:
+        self.active = True
+        self._started_at = timestamp
+        self._emitted = False
+        if self.spec.emit_on == "enter":
+            return self._fire(timestamp)
+        return None
+
+    def _on_active(self, value: float, leave: float, timestamp: float) -> str | None:
+        duration = timestamp - self._started_at
+        if self.spec.emit_on == "hold" and not self._emitted and duration >= self.spec.min_s:
+            return self._fire(timestamp)
+        if value >= leave:
+            return None
+        self.active = False
+        if self.spec.emit_on != "release":
+            return None
+        if self.spec.min_s <= duration <= self.spec.max_s:
+            return self._fire(timestamp)
+        return None
+
+    def _fire(self, timestamp: float) -> str:
+        self._emitted = True
+        self._refractory_until = timestamp + self.spec.refractory_s
+        if self.spec.emit_on == "enter":
+            self.active = True
+        return self.spec.event
+
+
+def artifact_spec(name: str, threshold: float | None = None) -> ArtifactSpec:
+    spec = ARTIFACTS[name]
+    if threshold is None:
+        return spec
+    return ArtifactSpec(**{**spec.__dict__, "threshold": threshold})
+
+
+ARTIFACTS: dict[str, ArtifactSpec] = {}
+
+
+def _spec(**kwargs: object) -> ArtifactSpec:
+    item = ArtifactSpec(**kwargs)  # type: ignore[arg-type]
+    ARTIFACTS[item.name] = item
+    return item
+
+
+_spec(name="blink", event=Event.BLINK, feature="blink_peak", threshold=55.0, min_s=0.08, max_s=1.2, refractory_s=1.5, emit_on="enter", prompt="Blink once.")
+_spec(name="cerrar_ojos", event=Event.EYES_CLOSED, feature="eyes_closed", threshold=6.0, min_s=2.0, max_s=30.0, refractory_s=1.5, emit_on="hold", prompt="Close your eyes for ~2 s.")
+_spec(name="happy", event=Event.HAPPY, feature="emg_rms", threshold=2.2, min_s=0.15, max_s=2.0, refractory_s=1.5, emit_on="release", prompt="Smile / happy face.")
+_spec(name="enojado", event=Event.ENOJADO, feature="emg_rms", threshold=2.3, min_s=0.2, max_s=2.5, refractory_s=1.5, emit_on="release", prompt="Make an angry face.")
+_spec(name="puno_izq", event=Event.PUNO_IZQ, feature="motion", threshold=5.1, min_s=0.3, max_s=2.5, refractory_s=2.2, emit_on="release", prompt="Clench left fist ~1 s.")
+_spec(name="puno_der", event=Event.PUNO_DER, feature="motion", threshold=5.1, min_s=0.3, max_s=2.5, refractory_s=2.2, emit_on="release", prompt="Clench right fist ~1 s.")
+_spec(name="brazo_izq", event=Event.BRAZO_IZQ, feature="gyro_rms", threshold=9.3, min_s=0.4, max_s=3.0, refractory_s=2.0, emit_on="release", prompt="Raise left arm ~3 s.")
+_spec(name="brazo_arriba", event=Event.BRAZO_ARRIBA, feature="gyro_rms", threshold=12.6, min_s=0.4, max_s=3.0, refractory_s=2.0, emit_on="release", prompt="Raise right arm ~3 s.")
+_spec(name="cuello_izq", event=Event.CUELLO_IZQ, feature="gyro_rms", threshold=11.4, min_s=0.4, max_s=3.0, refractory_s=2.8, emit_on="release", prompt="Turn head left, then center.")
+_spec(name="cuello_der", event=Event.CUELLO_DER, feature="gyro_rms", threshold=12.0, min_s=0.4, max_s=3.0, refractory_s=2.8, emit_on="release", prompt="Turn head right, then center.")
+_spec(name="giro_imag_izq", event=Event.GIRO_IMAG_IZQ, feature="gyro_rms", threshold=4.0, min_s=0.4, max_s=3.0, refractory_s=2.8, emit_on="release", prompt="Imagine turning left.")
+_spec(name="giro_imag_der", event=Event.GIRO_IMAG_DER, feature="gyro_rms", threshold=4.0, min_s=0.4, max_s=3.0, refractory_s=2.8, emit_on="release", prompt="Imagine turning right.")

@@ -13,6 +13,9 @@ BLINK_BAND = (1.0, 10.0)
 BLINK_CHANNELS = (0, 1)
 EYES_CLOSED_BAND = (8.0, 13.0)
 EYES_CLOSED_CHANNELS = (5, 6, 7)
+EMG_BAND = (30.0, 45.0)
+ACCEL_CHANNELS = (8, 9, 10)
+GYRO_CHANNELS = (11, 12, 13)
 
 
 def preprocess_window(window: np.ndarray, fs: int = SAMPLE_RATE) -> np.ndarray:
@@ -54,6 +57,41 @@ def extract_eye_features(window: np.ndarray, fs: int = SAMPLE_RATE) -> tuple[flo
         return blink_peak, 0.0
     eyes_closed_amp = float(np.sqrt(np.mean(np.square(closed_cols))))
     return blink_peak, eyes_closed_amp
+
+
+def extract_emg_rms(window: np.ndarray, fs: int = SAMPLE_RATE) -> float:
+    """30–45 Hz RMS on EEG after notch only (not the 1–40 Hz app bandpass)."""
+    if window.size == 0 or window.shape[1] < EEG_CHANNEL_COUNT:
+        return 0.0
+    eeg = _notch(window[:, :EEG_CHANNEL_COUNT], NOTCH_FREQ, fs)
+    band = _bandpass(eeg, EMG_BAND[0], EMG_BAND[1], fs)
+    return float(np.sqrt(np.mean(np.square(band))))
+
+
+def extract_gyro_rms(window: np.ndarray) -> float:
+    if window.size == 0 or window.shape[1] <= GYRO_CHANNELS[-1]:
+        return 0.0
+    gyro = window[:, list(GYRO_CHANNELS)]
+    return float(np.sqrt(np.mean(np.square(gyro))))
+
+
+def extract_named(window: np.ndarray, name: str, fs: int = SAMPLE_RATE) -> float:
+    """One scalar feature per artifact script."""
+    if window.size == 0:
+        return 0.0
+    if name == "blink_peak":
+        return extract_eye_features(window, fs)[0]
+    if name == "eyes_closed":
+        return extract_eye_features(window, fs)[1]
+    if name == "emg_rms":
+        return extract_emg_rms(window, fs)
+    if name == "gyro_rms":
+        return extract_gyro_rms(window)
+    if name == "motion":
+        return extract_emg_rms(window, fs) + extract_gyro_rms(window)
+    if name == "jaw_rms":
+        return extract_features(window, fs)[0]
+    raise ValueError(f"Unknown feature '{name}'")
 
 
 def _bandpass(data: np.ndarray, low: float, high: float, fs: int) -> np.ndarray:

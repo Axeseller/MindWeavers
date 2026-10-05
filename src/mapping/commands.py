@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from enum import Enum
 
+KEY_NONE = 255
+KEY_ESC = 27
+KEY_SPACE = 32
+
 
 class Event(str, Enum):
     JAW_SHORT = "JAW_SHORT"
@@ -13,6 +17,16 @@ class Event(str, Enum):
     BLINK = "BLINK"
     EYES_CLOSED = "EYES_CLOSED"
     EYES_OPENED = "EYES_OPENED"
+    HAPPY = "HAPPY"
+    ENOJADO = "ENOJADO"
+    PUNO_IZQ = "PUNO_IZQ"
+    PUNO_DER = "PUNO_DER"
+    BRAZO_IZQ = "BRAZO_IZQ"
+    BRAZO_ARRIBA = "BRAZO_ARRIBA"
+    CUELLO_IZQ = "CUELLO_IZQ"
+    CUELLO_DER = "CUELLO_DER"
+    GIRO_IMAG_IZQ = "GIRO_IMAG_IZQ"
+    GIRO_IMAG_DER = "GIRO_IMAG_DER"
 
 
 class Action(str, Enum):
@@ -28,6 +42,40 @@ class Action(str, Enum):
     YAW_CW = "YAW_CW"
     YAW_CCW = "YAW_CCW"
     PHOTO = "PHOTO"
+
+
+ACTION_SKILLS: dict[Action, str] = {
+    Action.FORWARD: "forward",
+    Action.BACK: "back",
+    Action.LEFT: "left",
+    Action.RIGHT: "right",
+    Action.UP: "up",
+    Action.DOWN: "down",
+    Action.YAW_CW: "yaw_clockwise",
+    Action.YAW_CCW: "yaw_counterclockwise",
+}
+
+KEY_ACTIONS: dict[str, Action] = {
+    "q": Action.TAKEOFF,
+    "e": Action.LAND,
+    "w": Action.FORWARD,
+    "s": Action.BACK,
+    "a": Action.LEFT,
+    "d": Action.RIGHT,
+    "y": Action.UP,
+    "u": Action.DOWN,
+    "r": Action.YAW_CCW,
+    "t": Action.YAW_CW,
+}
+
+
+def key_to_action(key: int, is_flying: bool) -> Action | None:
+    """Map an OpenCV keycode to an Action. Space switches takeoff/land."""
+    if key == KEY_SPACE:
+        return Action.LAND if is_flying else Action.TAKEOFF
+    if not 0 <= key < KEY_NONE:
+        return None
+    return KEY_ACTIONS.get(chr(key).lower())
 
 
 class CommandMapper:

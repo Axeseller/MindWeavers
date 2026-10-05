@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import app  # noqa: E402
-from mapping.commands import Action, CommandMapper, Event  # noqa: E402
+from mapping.commands import Action, CommandMapper, Event, key_to_action  # noqa: E402
 from tello.controller import RC_SPEED, TelloController  # noqa: E402
 from tello.skills import skill_rc  # noqa: E402
 
@@ -36,6 +36,17 @@ class CommandMapperTest(unittest.TestCase):
         mapper.map(Event.JAW_SHORT, False, 0.0)
         self.assertEqual(mapper.map(Event.ROTATE_CW, True, 0.1), Action.YAW_CW)
         self.assertEqual(mapper.map(Event.ROTATE_CCW, True, 0.1), Action.YAW_CCW)
+
+    def test_new_artifact_events_are_not_mapped_yet(self) -> None:
+        mapper = CommandMapper()
+        self.assertIsNone(mapper.map(Event.BLINK, True, 0.0))
+        self.assertIsNone(mapper.map(Event.PUNO_IZQ, True, 0.0))
+        self.assertIsNone(mapper.map(Event.CUELLO_DER, False, 0.0))
+
+    def test_key_to_action_space_toggles(self) -> None:
+        self.assertEqual(key_to_action(32, False), Action.TAKEOFF)
+        self.assertEqual(key_to_action(32, True), Action.LAND)
+        self.assertEqual(key_to_action(ord("t"), True), Action.YAW_CW)
 
     def test_rotation_event_reaches_yaw_skill(self) -> None:
         controller = TelloController(dry_run=True)
