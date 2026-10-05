@@ -10,6 +10,9 @@ class Event(str, Enum):
     DOUBLE_BLINK = "DOUBLE_BLINK"
     ROTATE_CW = "ROTATE_CW"
     ROTATE_CCW = "ROTATE_CCW"
+    BLINK = "BLINK"
+    EYES_CLOSED = "EYES_CLOSED"
+    EYES_OPENED = "EYES_OPENED"
 
 
 class Action(str, Enum):

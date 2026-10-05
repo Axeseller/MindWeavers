@@ -11,6 +11,8 @@ BANDPASS = (1.0, 40.0)
 JAW_BAND = (15.0, 40.0)
 BLINK_BAND = (1.0, 10.0)
 BLINK_CHANNELS = (0, 1)
+EYES_CLOSED_BAND = (8.0, 13.0)
+EYES_CLOSED_CHANNELS = (5, 6, 7)
 
 
 def preprocess_window(window: np.ndarray, fs: int = SAMPLE_RATE) -> np.ndarray:
@@ -36,6 +38,22 @@ def extract_features(window: np.ndarray, fs: int = SAMPLE_RATE) -> tuple[float, 
     blink_cols = blink_band[:, list(BLINK_CHANNELS)]
     blink_amp = float(np.mean(np.abs(blink_cols)))
     return jaw_rms, blink_amp
+
+
+def extract_eye_features(window: np.ndarray, fs: int = SAMPLE_RATE) -> tuple[float, float]:
+    """Return (blink_peak, eyes_closed_amp) from the latest EEG window."""
+    if window.size == 0:
+        return 0.0, 0.0
+    eeg = window[:, :EEG_CHANNEL_COUNT]
+    blink_band = _bandpass(eeg, BLINK_BAND[0], BLINK_BAND[1], fs)
+    blink_cols = blink_band[:, list(BLINK_CHANNELS)]
+    blink_peak = float(np.max(np.abs(blink_cols))) if blink_cols.size else 0.0
+    closed_band = _bandpass(eeg, EYES_CLOSED_BAND[0], EYES_CLOSED_BAND[1], fs)
+    closed_cols = closed_band[:, list(EYES_CLOSED_CHANNELS)]
+    if closed_cols.size == 0:
+        return blink_peak, 0.0
+    eyes_closed_amp = float(np.sqrt(np.mean(np.square(closed_cols))))
+    return blink_peak, eyes_closed_amp
 
 
 def _bandpass(data: np.ndarray, low: float, high: float, fs: int) -> np.ndarray:

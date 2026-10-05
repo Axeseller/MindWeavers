@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -158,6 +159,22 @@ class ToggleTakeoffLandTest(unittest.TestCase):
         controller = TelloController(dry_run=True)
         self.assertEqual(skills.toggle_takeoff_land(controller), "TAKEOFF")
         self.assertEqual(skills.toggle_takeoff_land(controller), "LAND")
+
+
+class CameraControllerTest(unittest.TestCase):
+    def test_dry_run_photo_and_video(self) -> None:
+        controller = TelloController(dry_run=True)
+        controller.connect(with_video=False)
+        self.assertFalse(controller.camera_on)
+        self.assertTrue(controller.start_camera())
+        out = Path(tempfile.mkdtemp())
+        self.assertIsNotNone(controller.take_photo(out))
+        self.assertIsNotNone(controller.start_recording(out))
+        self.assertTrue(controller.is_recording)
+        controller.record_frame()
+        self.assertIsNotNone(controller.stop_recording())
+        self.assertFalse(controller.is_recording)
+        controller.shutdown()
 
 
 if __name__ == "__main__":
