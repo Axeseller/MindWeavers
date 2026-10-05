@@ -58,6 +58,7 @@ class TelloController:
         self._tello: object | None = None
         self._frame_read: object | None = None
         self._burst_until = 0.0
+        self._burst_rc: tuple[int, int, int, int] = (0, 0, 0, 0)
 
     def connect(self, with_video: bool = True) -> bool:
         if self.dry_run:
@@ -78,7 +79,7 @@ class TelloController:
             print("--> Land (already grounded)")
             return
         print("--> Land")
-        self._burst_until = 0.0
+        self.cancel_burst()
         if not self.dry_run and self._tello is not None:
             self._tello.send_rc_control(0, 0, 0, 0)
             self._tello.land()
@@ -86,7 +87,7 @@ class TelloController:
 
     def emergency_land(self) -> None:
         print("--> Emergency land")
-        self._burst_until = 0.0
+        self.cancel_burst()
         if not self.dry_run and self._tello is not None:
             try:
                 self._tello.send_rc_control(0, 0, 0, 0)
@@ -99,16 +100,34 @@ class TelloController:
         if self.is_flying and time.monotonic() >= self._burst_until:
             self.send_rc(0, 0, 0, 0)
 
-    def forward_burst(self) -> None:
+    @property
+    def burst_active(self) -> bool:
+        return self.is_flying and time.monotonic() < self._burst_until
+
+    @property
+    def burst_rc(self) -> tuple[int, int, int, int]:
+        return self._burst_rc if self.burst_active else (0, 0, 0, 0)
+
+    def start_burst(self, rc: tuple[int, int, int, int], seconds: float) -> bool:
+        """Hold one RC tuple for `seconds`; apply_motion() must be called every tick to keep it alive."""
         if not self.is_flying:
-            return
-        print("--> Forward burst")
-        self._burst_until = time.monotonic() + FORWARD_BURST_SECONDS
-        self.send_rc(0, RC_SPEED, 0, 0)
+            return False
+        self._burst_rc = rc
+        self._burst_until = time.monotonic() + seconds
+        self.send_rc(*rc)
+        return True
+
+    def cancel_burst(self) -> None:
+        self._burst_until = 0.0
+        self._burst_rc = (0, 0, 0, 0)
+
+    def forward_burst(self) -> None:
+        if self.start_burst((0, RC_SPEED, 0, 0), FORWARD_BURST_SECONDS):
+            print("--> Forward burst")
 
     def apply_motion(self) -> None:
-        if self.is_flying and time.monotonic() < self._burst_until:
-            self.send_rc(0, RC_SPEED, 0, 0)
+        if self.burst_active:
+            self.send_rc(*self._burst_rc)
         else:
             self.hover()
 
@@ -151,7 +170,7 @@ class TelloController:
         elif command == "LAND":
             self.land()
         elif command == "FLIGHT" and any(rc):
-            self._burst_until = 0.0
+            self.cancel_burst()
             self.send_rc(*rc)
             return "override"
         return "idle"

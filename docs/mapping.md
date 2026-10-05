@@ -6,13 +6,15 @@ Do not change this table during a flight session. Tune detector thresholds, not 
 
 | Event | How it is detected | Tello action |
 |---|---|---|
-| `JAW_SHORT` | Jaw EMG stays above threshold for 0.25–1.0 s, then drops | Takeoff if grounded; otherwise a ~0.6 s forward burst |
+| `JAW_SHORT` | Jaw EMG stays above threshold for 0.25–1.0 s, then drops | Takeoff if grounded; land if flying |
 | `JAW_LONG` | Jaw EMG stays above threshold for more than 1.2 s | Land |
 | `JAW_EMERGENCY` | Jaw EMG stays above threshold for more than 2.5 s | Emergency land |
 | `DOUBLE_BLINK` | Two frontal blink peaks within 500 ms | Save a still from the Tello camera |
 | Single blink | One isolated frontal peak | Ignored — people blink constantly |
 
-Flight commands share a **1.0 s cooldown** so one clench cannot fire a burst of takeoffs.
+Flight commands share a **1.0 s cooldown** so one clench cannot take off and immediately land.
+
+Movement actions (`FORWARD`, `BACK`, `LEFT`, `RIGHT`, `UP`, `DOWN`, `YAW_CW`, `YAW_CCW`) exist in `Action` and are dispatched to `src/tello/skills.py`, but no event is bound to them yet. To bind a gesture, add an `Event` and one branch in `CommandMapper.map()`.
 
 ## Why these artifacts
 
