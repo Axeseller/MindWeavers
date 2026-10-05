@@ -129,6 +129,17 @@ class TelloController:
         self._camera_on = True
         return True
 
+    def stop_camera(self) -> None:
+        """Stop any recording and turn the video stream off."""
+        self.stop_recording()
+        if not self.camera_on:
+            return
+        print("--> Camera off")
+        if not self.dry_run and self._tello is not None:
+            self._tello.streamoff()
+        self._frame_read = None
+        self._camera_on = False
+
     def take_photo(self, output_dir: Path) -> Path | None:
         output_dir.mkdir(parents=True, exist_ok=True)
         path = output_dir / f"photo_{int(time.time())}.jpg"

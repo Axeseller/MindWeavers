@@ -2,7 +2,7 @@
 
 Recording: cerrarojos3secmantenido. Signal: occipital alpha 8-13 Hz held for 1.5 s.
 Cleaning: eeg.preprocess.ARTIFACT_CLEANING["cerrar_ojos"]. Decision: eeg.detectors.ARTIFACT_PARAMS["cerrar_ojos"].
-Not mapped to a drone command yet: each detection is only printed. Put the command in on_detect().
+On detection: Turns the camera on, or off if it was on.
 
     python scripts/artifacts/cerrar_ojos.py                  # headset LSL, Tello dry-run
     python scripts/artifacts/cerrar_ojos.py --live           # headset LSL, real Tello
@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import _paths  # noqa: F401
 from _live import run
+from camera_actions import toggle_camera
 from tello.controller import TelloController
 
 ARTIFACT = "cerrar_ojos"
@@ -20,6 +21,7 @@ ARTIFACT = "cerrar_ojos"
 
 def on_detect(controller: TelloController) -> bool:
     """Drone action for this artifact. Return True to stop the script."""
+    toggle_camera(controller)
     return False
 
 

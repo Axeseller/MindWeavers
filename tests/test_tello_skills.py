@@ -191,6 +191,8 @@ class CameraControllerTest(unittest.TestCase):
         controller.record_frame()
         self.assertIsNotNone(controller.stop_recording())
         self.assertFalse(controller.is_recording)
+        controller.stop_camera()
+        self.assertFalse(controller.camera_on)
         controller.shutdown()
 
 

@@ -10,6 +10,20 @@ python scripts/artifacts/blink.py --replay <csv>   # a recorded CSV, no hardware
 python scripts/artifacts/check_all.py <csv folder> # every detector on every recording
 ```
 
+## Camera mode
+```bash
+python scripts/artifacts/camera.py        # close eyes 1.5 s: camera on / off. Blink: photo (only while on)
+```
+`camera.py` runs `cerrar_ojos` and `blink` together, because closing or opening the eyes also looks like a blink:
+- **Blinks wait 0.6 s before they count.** If the eyes stay closed in that time, it was a close, not a blink.
+- **Blinks are ignored for 1 s after the eyes open.**
+
+On the recordings this filtering cut false photos:
+- **Closing the eyes:** from 29 to 1.
+- **Jaw clench:** from 19 to 1.
+
+It also costs some real blinks: it now takes 14 of the 18. Photos go to `data/recordings/`. Natural blinks also take photos while the camera is on.
+
 Where things live:
 - **Cleaning** (channels, filter, CAR, window, statistic): `src/eeg/preprocess.py`, `ARTIFACT_CLEANING`.
 - **Decision** (threshold, duration, direction, refractory): `src/eeg/detectors.py`, `ARTIFACT_PARAMS`.
