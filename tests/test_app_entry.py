@@ -10,9 +10,15 @@ import app  # noqa: E402
 
 
 class AppEntryTest(unittest.TestCase):
-    def test_app_runs_the_simple_flight(self) -> None:
-        self.assertEqual(app.FLIGHT.name, "vuelo.py")
+    def test_app_runs_the_six_input_flight_by_default(self) -> None:
+        self.assertEqual(app.pick_flight([]).name, "vuelo6.py")
+        self.assertEqual(app.pick_flight(["--dry-run"]).name, "vuelo6.py")
         self.assertTrue(app.FLIGHT.exists())
+
+    def test_smaller_flights_on_request(self) -> None:
+        self.assertEqual(app.pick_flight(["--simple"]).name, "vuelo.py")
+        self.assertEqual(app.pick_flight(["--lados", "--dry-run"]).name, "vuelo5.py")
+        self.assertEqual(app.translate_legacy_args(["--simple", "--dry-run"]), ["--dry-run"])
 
     def test_lados_selects_the_five_input_flight(self) -> None:
         self.assertEqual(app.FLIGHT_SIDES.name, "vuelo5.py")

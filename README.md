@@ -3,7 +3,8 @@
 Control a DJI Tello with EEG artifacts from a Unicorn Hybrid Black headset.
 
 One Windows laptop talks to both devices: Unicorn Recorder streams **raw** LSL, and
-`src/app.py` is the main program: jaw takes off and lands, turning the head goes forward, a blink goes back.
+`src/app.py` is the main program: jaw takes off and lands, turning the head goes forward, a blink goes back,
+a smile goes right, a frown goes left and closing the eyes turns 90° right.
 
 ## Artifact map
 
@@ -70,15 +71,16 @@ Main program (flies the real Tello by default; `--dry-run` prints instead):
 
 ```bash
 python scripts/artifacts/doctor.py
-python scripts/artifacts/calibrate.py --inputs jaw,cuello,blink
+python scripts/artifacts/calibrate.py --inputs jaw,cerrar_ojos,cuello,blink,angry,happy
 python src/app.py --dry-run
 python src/app.py
+python src/app.py --lados     # without the eyes-closed turn
+python src/app.py --simple    # only jaw, neck and blink
 ```
 
-`src/app.py` runs `scripts/artifacts/vuelo.py`: jaw clench (1st) takes off, turning the head goes forward 1 s,
-a blink goes back 1 s, jaw clench (2nd) lands, all through `Tello/Mover.py`. For every input (camera, smile,
-frown, fist) use `scripts/artifacts/fly.py` (dry-run by default, `--live` for the drone). Use replay and dry-run
-before flying.
+`src/app.py` runs `scripts/artifacts/vuelo6.py` through `Tello/Mover.py`: jaw clench (1st) takes off, turning the
+head goes forward 1 s, a blink goes back 1 s, a smile goes right, a frown goes left, closing the eyes turns 90°
+right, jaw clench (2nd) lands. Use replay and dry-run before flying.
 
 Tests (no hardware):
 
@@ -109,5 +111,5 @@ Axel, Ian, Chavez, Luisao, Hector.
 - Unicorn / LSL: Recorder, stream name, `test_lsl.py`, baselines
 - Tello SDK: `src/tello/controller.py`, safety, photo
 - EEG mapping: `src/eeg/`, [docs/mapping.md](docs/mapping.md)
-- Integration: `src/app.py` (runs `scripts/artifacts/vuelo.py`); all inputs: `scripts/artifacts/fly.py`
+- Integration: `src/app.py` (runs `scripts/artifacts/vuelo6.py`)
 - Demo / pitch: [docs/pitch.md](docs/pitch.md)
