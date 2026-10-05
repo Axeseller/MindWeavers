@@ -25,6 +25,38 @@ class RecordingTello(vuelo.DryRunTello):
         self.calls.append((lr, fb, ud, yv))
 
 
+class FailingTello(RecordingTello):
+    def __init__(self, response: str) -> None:
+        super().__init__()
+        self.response = response
+        self.fail = True
+
+    def get_highest_temperature(self) -> int:
+        return 92
+
+    def takeoff(self) -> None:
+        if self.fail:
+            raise Exception(f"Command 'takeoff' was unsuccessful for 4 tries. Latest response: '{self.response}'")
+        super().takeoff()
+
+
+class TakeoffFailureTest(unittest.TestCase):
+    def test_failed_takeoff_keeps_running_and_can_retry(self) -> None:
+        tello = FailingTello("error")
+        flight = vuelo.Flight(tello, vuelo.KEYS)
+        self.assertIn("FAILED", flight.gesture("jaw", 0.0))
+        self.assertFalse(flight.is_flying)
+        self.assertIn("ignored", flight.gesture("cuello", 1.0))  # nothing moves on the ground
+        tello.fail = False
+        self.assertIn("TAKEOFF", flight.gesture("jaw", 5.0))
+        self.assertTrue(flight.is_flying)
+
+    def test_diagnosis_names_the_likely_cause(self) -> None:
+        text = vuelo.takeoff_diagnosis(FailingTello("error No valid imu"), Exception("Latest response: 'error No valid imu'"))
+        self.assertIn("IMU", text)
+        self.assertIn("sobrecalentado", text)
+
+
 class FlightKeysTest(unittest.TestCase):
     def fly(self, keys, names):
         tello = RecordingTello()

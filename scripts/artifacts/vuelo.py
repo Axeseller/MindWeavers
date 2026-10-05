@@ -43,6 +43,7 @@ CONTROLS = (
 PULSE_S = 1.0  # how long a forward/back command is held
 RC_REFRESH_S = 0.1  # resend the current RC command this often, like Mover.py's loop (keeps the Tello awake)
 MIN_BATTERY = 20
+HOT_TEMPERATURE = 85  # °C; around 90 the Tello refuses to take off and shuts down to cool
 NO_DATA_WARN_S = 3.0  # say so when the headset sends nothing for this long
 STATUS_INTERVAL_S = 0.5
 LOOP_SLEEP_S = 0.005
@@ -57,6 +58,9 @@ class DryRunTello:
 
     def get_battery(self) -> int:
         return 100
+
+    def get_highest_temperature(self) -> int:
+        return 60
 
     def takeoff(self) -> None:
         print("[dry-run] tello.takeoff()")
@@ -104,7 +108,33 @@ def connect_tello(dry_run: bool):
     if battery < MIN_BATTERY:
         print("Batería demasiado baja para un vuelo seguro. Carga el dron e intenta de nuevo.")
         return None
+    temperature = tello.get_highest_temperature()
+    print(f"Temperatura: {temperature}°C")
+    if temperature >= HOT_TEMPERATURE:
+        print("[!] El Tello está caliente: puede negarse a despegar. Apágalo unos minutos o dale aire.")
     return tello
+
+
+def takeoff_diagnosis(tello, error: Exception) -> str:
+    """Why the Tello refused to take off, as far as it can tell us."""
+    lines = [f"El Tello rechazó el despegue: {error}"]
+    text = str(error).lower()
+    try:
+        battery = tello.get_battery()
+        temperature = tello.get_highest_temperature()
+        lines.append(f"  batería {battery}%, temperatura {temperature}°C")
+        if battery < 30:
+            lines.append("  -> batería baja: con menos de ~30% el Tello a veces se niega. Cámbiala.")
+        if temperature >= HOT_TEMPERATURE:
+            lines.append("  -> sobrecalentado: apágalo unos minutos.")
+    except Exception:
+        lines.append("  (no respondió a batería/temperatura: revisa el Wi-Fi del Tello)")
+    if "imu" in text:
+        lines.append("  -> calibra la IMU desde la app Tello (Configuración > Más > Calibrar IMU).")
+    if "motor" in text:
+        lines.append("  -> revisa que las hélices giren libres y sin protectores trabados.")
+    lines.append("  Pon el dron en piso plano y con luz. Aprieta la mandíbula otra vez para reintentar.")
+    return "\n".join(lines)
 
 
 class Flight:
@@ -123,13 +153,21 @@ class Flight:
         command, rc = get_keyboard_input(ord(key))
         if command == "TAKEOFF" and not self.is_flying:
             print("--> Despegando...")
-            self.tello.takeoff()
+            try:
+                self.tello.takeoff()
+            except Exception as error:  # the drone answered "error": keep running so the pilot can retry
+                print(takeoff_diagnosis(self.tello, error))
+                return f"key {key.upper()}: TAKEOFF FAILED"
             self.is_flying = True
             return f"key {key.upper()}: TAKEOFF"
         if command == "LAND" and self.is_flying:
             self.stop()
             print("--> Aterrizando...")
-            self.tello.land()
+            try:
+                self.tello.land()
+            except Exception as error:  # still flying: hover and let the pilot clench again (or Ctrl+C)
+                print(f"El Tello no confirmó el aterrizaje: {error}. Sigue en el aire; aprieta otra vez o Ctrl+C.")
+                return f"key {key.upper()}: LAND FAILED"
             self.is_flying = False
             return f"key {key.upper()}: LAND"
         if command == "FLIGHT" and self.is_flying:
